@@ -16,7 +16,8 @@
     "test": "node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=4 \"tests/**/*.test.ts\" \"plugins/*/test/*.test.ts\"",
     "test:sandbox": "HELM_TEST_SANDBOX=1 node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=1 \"tests/**/*.sandbox.test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
-    "demo": "zsh scripts/demo.sh"
+    "demo": "zsh scripts/demo.sh",
+    "live": "zsh scripts/live-check.sh"
   },
   "dependencies": {
     "ajv": "^8.17.1",

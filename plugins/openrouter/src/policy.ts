@@ -38,8 +38,9 @@ export function blockReason(modelId: string, rules: string[]): string | undefine
 export function assertAllowed(modelId: string, rules: string[], what = 'Model'): void {
   const why = blockReason(modelId, rules);
   if (why) {
-    const e = new Error(`${what} "${modelId}" is blocked: ${why}. Change the model (helm provider use helm.openrouter/openrouter --model <id>) or edit blockedModels.`);
-    (e as Error & { code: string }).code = 'PROVIDER_ERROR';
+    const e = new Error(`${what} "${modelId}" is blocked by the model policy: ${why}`) as Error & { code: string; hint: string };
+    e.code = 'PROVIDER_ERROR';
+    e.hint = 'Pick an allowed model (see `helm cmd openrouter.models`) with `helm provider use helm.openrouter/openrouter --model <id>` or `-m <id>`; the policy itself is the blockedModels setting of helm.openrouter.';
     throw e;
   }
 }

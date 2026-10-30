@@ -146,6 +146,7 @@ templates/                  scaffolds used by `helm plugin new`
 docs/                       guides, protocol and manifest reference, JSON Schema
 tests/                      unit, integration, sandbox and CLI end-to-end tests
 scripts/demo.sh             the acceptance walkthrough
+scripts/live-check.sh       live OpenRouter checks (needs OPENROUTER_API_KEY in .env; ~US$0.10)
 ```
 
 ## Tests

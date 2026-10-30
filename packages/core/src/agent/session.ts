@@ -109,7 +109,8 @@ export class Session {
       emit({ type: 'model', provider: res.provider, model: res.model, usage: res.usage });
       const msg: ChatMessage = { role: 'assistant', content: res.message.content ?? null, toolCalls: res.message.toolCalls?.length ? res.message.toolCalls : undefined, providerData: res.message.providerData };
       this.messages.push(msg);
-      this.record({ role: 'assistant', content: msg.content, toolCalls: msg.toolCalls, model: res.model, usage: res.usage });
+      // providerData (e.g. reasoning blocks) is opaque to the host: kept in memory and returned to the provider, but only its size is logged.
+      this.record({ role: 'assistant', content: msg.content, toolCalls: msg.toolCalls, model: res.model, usage: res.usage, providerDataBytes: msg.providerData === undefined ? undefined : JSON.stringify(msg.providerData).length });
       notifyWatchers(helm, 'model.response', { sessionId: this.id, text: msg.content, toolCalls: msg.toolCalls?.map((c) => c.name) });
       if (msg.content) { finalText = msg.content; emit({ type: 'assistant', text: msg.content }); }
       if (!msg.toolCalls?.length) { emit({ type: 'done', text: finalText, steps: step }); return finalText; }
