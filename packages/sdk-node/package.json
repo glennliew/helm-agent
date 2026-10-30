@@ -1,0 +1,11 @@
+{
+  "name": "@helm-agent/plugin-sdk",
+  "version": "1.0.0",
+  "description": "SDK for writing Helm plugins in TypeScript or JavaScript. Injected by the Helm host at runtime.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  }
+}

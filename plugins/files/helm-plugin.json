@@ -1,0 +1,58 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.files",
+  "name": "Files",
+  "version": "1.0.0",
+  "description": "Browse, search, read and (optionally) edit files in your workspace.",
+  "publisher": "helm",
+  "license": "MIT",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    { "id": "fs.read", "scope": ["${workspace}"], "reason": "Read files in the current workspace to answer questions about them." },
+    { "id": "fs.write", "scope": ["${workspace}"], "optional": true, "reason": "Create and edit files in the workspace when you ask it to. Without this, Files is read-only." }
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "list_dir", "title": "List folder", "effect": "read",
+        "description": "List files and folders (with sizes) under a path in the workspace. Use depth>1 for a tree.",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string", "default": "." }, "depth": { "type": "integer", "minimum": 1, "maximum": 4, "default": 1 } } }
+      },
+      {
+        "name": "read_file", "title": "Read file", "effect": "read",
+        "description": "Read a text file with line numbers. Optionally pass startLine/endLine (1-based, inclusive) for large files.",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" }, "startLine": { "type": "integer", "minimum": 1 }, "endLine": { "type": "integer", "minimum": 1 } }, "required": ["path"] }
+      },
+      {
+        "name": "search_text", "title": "Search text", "effect": "read",
+        "description": "Search file contents in the workspace for a string or regular expression. Returns file:line matches.",
+        "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "minLength": 1 }, "path": { "type": "string", "default": "." }, "regex": { "type": "boolean", "default": false }, "caseSensitive": { "type": "boolean", "default": false }, "maxResults": { "type": "integer", "minimum": 1, "maximum": 500, "default": 80 } }, "required": ["query"] }
+      },
+      {
+        "name": "write_file", "title": "Write file", "effect": "write", "requires": ["fs.write"],
+        "description": "Create or overwrite a text file in the workspace with the given content.",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" }, "content": { "type": "string" } }, "required": ["path", "content"] }
+      },
+      {
+        "name": "edit_file", "title": "Edit file", "effect": "write", "requires": ["fs.write"],
+        "description": "Replace an exact snippet of text in a file. 'find' must match exactly once unless all=true.",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" }, "find": { "type": "string", "minLength": 1 }, "replace": { "type": "string" }, "all": { "type": "boolean", "default": false } }, "required": ["path", "find", "replace"] }
+      }
+    ],
+    "commands": [
+      { "name": "stats", "title": "Workspace file statistics", "args": { "type": "object", "properties": { "path": { "type": "string" } } } }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ignore": { "type": "array", "items": { "type": "string" }, "default": [".git", "node_modules", ".DS_Store", "dist", ".venv", "__pycache__", ".helm-dev", ".work"], "description": "File or folder names skipped by list_dir and search_text." },
+        "maxFiles": { "type": "integer", "minimum": 10, "maximum": 20000, "default": 3000, "description": "Maximum files visited by one search." },
+        "maxFileKb": { "type": "integer", "minimum": 1, "maximum": 2048, "default": 512, "description": "Files larger than this are skipped by search and truncated by read." }
+      }
+    }
+  }
+}

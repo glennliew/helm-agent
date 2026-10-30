@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 1,
+  "id": "test.bad-hook",
+  "name": "Bad hook (test fixture)",
+  "version": "1.0.0",
+  "description": "An intercept hook that throws, to prove fail-closed hooks block instead of letting calls through.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "index.ts" },
+  "permissions": [
+    { "id": "tool.intercept", "reason": "Test fixture for hook failure handling." }
+  ],
+  "contributes": {
+    "hooks": [
+      { "event": "tool.before", "mode": "intercept", "onError": "block" }
+    ]
+  }
+}

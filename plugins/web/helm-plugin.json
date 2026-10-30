@@ -1,0 +1,44 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.web",
+  "name": "Web",
+  "version": "1.0.0",
+  "description": "Fetch web pages as readable text and search the web (Wikipedia by default, Brave Search with an API key). Written in Python.",
+  "publisher": "helm",
+  "license": "MIT",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "python", "entry": "main.py" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    { "id": "net.http", "scope": ["*"], "reason": "Fetch the pages and search results you ask for. You can narrow this to specific sites (e.g. *.wikipedia.org)." },
+    { "id": "secrets", "scope": ["BRAVE_API_KEY"], "optional": true, "reason": "Use Brave Search instead of Wikipedia if you provide a Brave API key." }
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "fetch_url", "title": "Fetch URL", "effect": "external",
+        "description": "Download a web page and return its title and readable text (scripts, styles and navigation removed).",
+        "inputSchema": { "type": "object", "properties": { "url": { "type": "string", "pattern": "^https?://" }, "maxChars": { "type": "integer", "minimum": 500, "maximum": 100000 } }, "required": ["url"] }
+      },
+      {
+        "name": "web_search", "title": "Web search", "effect": "external",
+        "description": "Search the web and return result titles, URLs and snippets. Follow up with fetch_url for details.",
+        "inputSchema": { "type": "object", "properties": { "query": { "type": "string", "minLength": 2 }, "limit": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 } }, "required": ["query"] }
+      }
+    ],
+    "commands": [
+      { "name": "history", "title": "Recently fetched pages" }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "searchBackend": { "type": "string", "enum": ["wikipedia", "brave"], "default": "wikipedia" },
+        "language": { "type": "string", "default": "en", "description": "Wikipedia language edition." },
+        "maxChars": { "type": "integer", "minimum": 500, "maximum": 100000, "default": 20000 }
+      }
+    }
+  },
+  "limits": { "callTimeoutMs": 45000 }
+}

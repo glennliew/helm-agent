@@ -1,0 +1,148 @@
+{
+  "manifestVersion": 1,
+  "id": "test.echo",
+  "name": "Echo (test fixture)",
+  "version": "1.0.0",
+  "description": "Echoes input back; used by the Helm test suite.",
+  "engines": {
+    "helm": ">=0.1.0 <1.0.0",
+    "protocol": "^1.0"
+  },
+  "runtime": {
+    "type": "node",
+    "entry": "index.ts"
+  },
+  "activation": [
+    "onTool",
+    "onCommand"
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "echo",
+        "description": "Echo the given text back.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      },
+      {
+        "name": "slow",
+        "description": "Sleep for ms milliseconds, honouring cancellation.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ms": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      {
+        "name": "spin",
+        "description": "Busy-loop forever (blocks the event loop).",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "crash",
+        "description": "Exit the process immediately.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "noisy",
+        "description": "Write garbage to stdout.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "read_home",
+        "description": "Try to read a file outside any grant.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "direct_net",
+        "description": "Try to open a socket directly.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "hog",
+        "description": "Allocate memory until killed.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "spawn",
+        "description": "Try to start a child process directly.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "env",
+        "description": "List environment variable names visible to the plugin.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object"
+        }
+      },
+      {
+        "name": "peek_secret",
+        "description": "Try to read a host secret by name.",
+        "effect": "read",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    ],
+    "commands": [
+      {
+        "name": "hello",
+        "title": "Say hello"
+      }
+    ]
+  },
+  "limits": {
+    "callTimeoutMs": 3000,
+    "activationTimeoutMs": 5000,
+    "memoryMb": 64
+  }
+}

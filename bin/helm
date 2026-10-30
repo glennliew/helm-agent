@@ -1,0 +1,12 @@
+#!/bin/sh
+# Helm CLI launcher. No build step: Node (22.18+) runs the TypeScript sources directly.
+SELF="$0"
+while [ -h "$SELF" ]; do
+  LINK=$(readlink "$SELF")
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *) SELF="$(dirname "$SELF")/$LINK" ;;
+  esac
+done
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+exec node --disable-warning=ExperimentalWarning "$ROOT/packages/cli/src/main.ts" "$@"

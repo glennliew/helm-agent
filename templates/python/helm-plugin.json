@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 1,
+  "id": "{{id}}",
+  "name": "{{title}}",
+  "version": "0.1.0",
+  "description": "{{title}}: describe what this plugin adds to Helm.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "python", "entry": "main.py" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    { "id": "fs.read", "scope": ["${workspace}"], "reason": "Count words in workspace files." }
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "hello",
+        "description": "Greet someone. A starting point: rename it and describe what the model should use it for.",
+        "effect": "read",
+        "inputSchema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }
+      },
+      {
+        "name": "word_count",
+        "description": "Count the words in a workspace file.",
+        "effect": "read",
+        "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] }
+      }
+    ],
+    "commands": [
+      { "name": "about", "title": "About this plugin" }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "greeting": { "type": "string", "default": "Hello", "description": "Word used by the hello tool." }
+      }
+    }
+  }
+}

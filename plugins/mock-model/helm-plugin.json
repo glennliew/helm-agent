@@ -1,0 +1,19 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.mock-model",
+  "name": "Mock Model",
+  "version": "1.0.0",
+  "description": "A deterministic, offline model provider for tests, demos and plugin development. Needs no permissions.",
+  "publisher": "helm",
+  "license": "MIT",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onProvider"],
+  "permissions": [],
+  "contributes": {
+    "providers": [
+      { "id": "mock", "title": "Mock (offline)", "description": "Understands 'call <tool> <json>' and 'use <tool>' directives; otherwise echoes.", "defaultModel": "mock-1" }
+    ]
+  }
+}

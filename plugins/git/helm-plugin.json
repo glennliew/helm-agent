@@ -1,0 +1,43 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.git",
+  "name": "Git",
+  "version": "1.0.0",
+  "description": "Understand and commit changes in the workspace's git repository: status, diffs, history and commits.",
+  "publisher": "helm",
+  "license": "MIT",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    { "id": "process.exec", "scope": ["git"], "reason": "Run the git program. Helm runs it inside a sandbox limited to your workspace, without network access." },
+    { "id": "fs.read", "scope": ["${workspace}"], "reason": "Let git read the repository in your workspace." },
+    { "id": "fs.write", "scope": ["${workspace}/.git"], "optional": true, "reason": "Let git record commits. Only the .git folder is writable; your working files are never modified." }
+  ],
+  "contributes": {
+    "tools": [
+      { "name": "git_status", "title": "Status", "effect": "read", "description": "Show the current branch, upstream tracking and changed/untracked files.", "inputSchema": { "type": "object", "properties": {} } },
+      { "name": "git_diff", "title": "Diff", "effect": "read", "description": "Show the diff of unstaged (default) or staged changes, optionally for one path.", "inputSchema": { "type": "object", "properties": { "staged": { "type": "boolean", "default": false }, "path": { "type": "string" } } } },
+      { "name": "git_log", "title": "History", "effect": "read", "description": "Show recent commits (hash, author, date, subject), optionally for one path.", "inputSchema": { "type": "object", "properties": { "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 }, "path": { "type": "string" } } } },
+      { "name": "git_show", "title": "Show commit", "effect": "read", "description": "Show one commit's message and patch.", "inputSchema": { "type": "object", "properties": { "rev": { "type": "string", "default": "HEAD" } } } },
+      { "name": "git_commit", "title": "Commit", "effect": "write", "requires": ["fs.write"], "description": "Stage the given paths (or all changes when all=true) and create a commit with the message.", "inputSchema": { "type": "object", "properties": { "message": { "type": "string", "minLength": 3 }, "paths": { "type": "array", "items": { "type": "string" } }, "all": { "type": "boolean", "default": false } }, "required": ["message"] } }
+    ],
+    "commands": [
+      { "name": "summary", "title": "Repository summary" }
+    ],
+    "panels": [
+      { "id": "repo", "title": "Repository", "description": "Branch, pending changes and recent commits." }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authorName": { "type": "string", "default": "Helm Agent", "description": "Author name for commits made through Helm." },
+        "authorEmail": { "type": "string", "default": "helm-agent@localhost" },
+        "coAuthor": { "type": "string", "default": "", "description": "Optional Co-authored-by trailer, e.g. 'Your Name <you@example.com>'." },
+        "maxDiffChars": { "type": "integer", "minimum": 1000, "maximum": 200000, "default": 40000 }
+      }
+    }
+  }
+}

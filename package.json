@@ -1,0 +1,33 @@
+{
+  "name": "helm-agent",
+  "version": "0.1.0",
+  "description": "Helm: a local AI agent harness where every capability is a sandboxed plugin.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "helm": "bin/helm"
+  },
+  "scripts": {
+    "helm": "node packages/cli/src/main.ts",
+    "test": "node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=4 \"tests/**/*.test.ts\" \"plugins/*/test/*.test.ts\"",
+    "test:sandbox": "HELM_TEST_SANDBOX=1 node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=1 \"tests/**/*.sandbox.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "demo": "zsh scripts/demo.sh"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "commander": "^14.0.0",
+    "htm": "^3.1.1",
+    "preact": "^10.27.0",
+    "semver": "^7.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/semver": "^7.7.0",
+    "typescript": "^5.9.0"
+  }
+}

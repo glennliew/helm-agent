@@ -1,0 +1,73 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.guard",
+  "name": "Guard",
+  "version": "1.0.0",
+  "description": "Policy guard for agent tool calls: blocks access to secrets, flags risky actions for confirmation, and redacts credentials from tool output.",
+  "publisher": "helm",
+  "license": "MIT",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onSession", "onCommand"],
+  "permissions": [
+    { "id": "tool.intercept", "reason": "Inspect every tool call before it runs (to block or ask) and its result (to redact credentials)." }
+  ],
+  "contributes": {
+    "hooks": [
+      { "event": "tool.before", "mode": "intercept", "priority": 100, "onError": "block", "timeoutMs": 2000 },
+      { "event": "tool.after", "mode": "intercept", "priority": 100, "onError": "continue", "timeoutMs": 2000 },
+      { "event": "session.end", "mode": "watch" }
+    ],
+    "commands": [
+      { "name": "report", "title": "Show what Guard blocked, asked about or redacted" },
+      { "name": "rules", "title": "List active Guard rules" },
+      { "name": "clear", "title": "Clear Guard's activity log" }
+    ],
+    "panels": [
+      { "id": "activity", "title": "Guard activity", "description": "Recent decisions made by Guard." }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["enforce", "monitor"], "default": "enforce", "description": "monitor = record what would be blocked, but allow it." },
+        "rules": {
+          "type": "array",
+          "description": "Ordered rules. tools: globs on exposed tool names; match: regex tested against every string in the input.",
+          "items": {
+            "type": "object",
+            "required": ["id", "action"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "tools": { "type": "array", "items": { "type": "string" } },
+              "effects": { "type": "array", "items": { "enum": ["read", "write", "external", "exec"] } },
+              "match": { "type": "string" },
+              "action": { "enum": ["block", "ask", "allow"] },
+              "reason": { "type": "string" }
+            }
+          },
+          "default": [
+            { "id": "secret-files", "tools": ["*"], "match": "(^|/)(\\.env(\\.[\\w.-]+)?|\\.ssh(/.*)?|id_(rsa|ed25519|ecdsa)(\\.pub)?|[^/]*\\.(pem|p12|pfx|key))$", "action": "block", "reason": "Touches a credentials file (.env, SSH keys, certificates)." },
+            { "id": "secret-in-url", "tools": ["*fetch*", "*search*"], "match": "[?&](api[_-]?key|access[_-]?token|token|secret|password|passwd)=", "action": "block", "reason": "URL carries a credential-like parameter (possible data exfiltration)." },
+            { "id": "confirm-commit", "tools": ["*git_commit"], "action": "ask", "reason": "Commits change your repository history." }
+          ]
+        },
+        "redactPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "sk-or-v1-[A-Za-z0-9]{20,}",
+            "sk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}",
+            "gh[pousr]_[A-Za-z0-9]{30,}",
+            "AKIA[0-9A-Z]{16}",
+            "xox[abprs]-[A-Za-z0-9-]{10,}",
+            "-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----"
+          ],
+          "description": "Regexes redacted from tool output before the model sees it."
+        }
+      }
+    }
+  }
+}

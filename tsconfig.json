@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": [
+      "es2023"
+    ],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@helm-agent/plugin-sdk": [
+        "packages/sdk-node/src/index.ts"
+      ],
+      "@helm-agent/plugin-sdk/testing": [
+        "packages/sdk-node/src/testing.ts"
+      ]
+    }
+  },
+  "include": [
+    "packages/**/*.ts",
+    "plugins/**/*.ts",
+    "tests/**/*.ts",
+    "templates/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "packages/web/public/**"
+  ]
+}

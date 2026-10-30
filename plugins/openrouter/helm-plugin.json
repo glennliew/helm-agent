@@ -1,0 +1,53 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.openrouter",
+  "name": "OpenRouter",
+  "version": "1.0.0",
+  "description": "Model provider for OpenRouter (and other OpenAI-compatible APIs) with tool calling, fallbacks and a model allow/block policy.",
+  "publisher": "helm",
+  "license": "MIT",
+  "homepage": "https://openrouter.ai/docs",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onProvider"],
+  "permissions": [
+    { "id": "net.http", "scope": ["openrouter.ai"], "userExtensible": true, "reason": "Send your prompts to the OpenRouter API. Add hosts if you point baseUrl at another OpenAI-compatible endpoint." },
+    { "id": "secrets", "scope": ["API_KEY"], "reason": "Authenticate to OpenRouter with your API key (get one at https://openrouter.ai/keys)." }
+  ],
+  "contributes": {
+    "providers": [
+      {
+        "id": "openrouter",
+        "title": "OpenRouter",
+        "description": "Hundreds of models behind one API. Default: Claude Opus 5.5 with Sonnet 5.5 fallback.",
+        "defaultModel": "anthropic/claude-opus-5.5",
+        "timeoutMs": 300000
+      }
+    ],
+    "commands": [
+      { "name": "models", "title": "List allowed models with tool support", "args": { "type": "object", "properties": { "filter": { "type": "string" } } } },
+      { "name": "check", "title": "Explain whether a model is allowed by the policy", "args": { "type": "object", "properties": { "model": { "type": "string" } }, "required": ["model"] } }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseUrl": { "type": "string", "default": "https://openrouter.ai/api/v1", "description": "OpenAI-compatible base URL." },
+        "fallbackModels": { "type": "array", "items": { "type": "string" }, "default": ["anthropic/claude-sonnet-5.5"], "description": "Tried in order if the primary model is unavailable (OpenRouter `models` routing)." },
+        "fastModel": { "type": "string", "default": "anthropic/claude-haiku-5.5", "description": "Cheap model used when plugins call the model (llm.invoke)." },
+        "reasoningEffort": { "type": "string", "enum": ["none", "minimal", "low", "medium", "high", "xhigh"], "default": "medium", "description": "Reasoning effort for models that support it." },
+        "maxTokens": { "type": "integer", "minimum": 256, "maximum": 128000, "default": 8192 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "blockedModels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["openai/gpt>=6", "anthropic/claude-fable>=5", "~*", "openrouter/*"],
+          "description": "Policy rules. 'vendor/family>=N' blocks major version N and newer; globs block by pattern. Aliases (~) and routers are blocked because they can resolve to a blocked model."
+        },
+        "appTitle": { "type": "string", "default": "Helm", "description": "Sent as X-Title for OpenRouter attribution." }
+      }
+    }
+  },
+  "limits": { "callTimeoutMs": 300000, "maxConcurrency": 4 }
+}

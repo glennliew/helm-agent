@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+.helm-dev/
+.work/
+*.log
+.DS_Store
+dist/
+*.hplugin.tgz
