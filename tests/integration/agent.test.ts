@@ -163,6 +163,12 @@ test('watch hooks see conversation content only with conversation.read', async (
     assert.deepEqual(after.payload.redacted, ['input', 'output']);
     assert.equal(after.payload.exposedName, 'watcher__seen', 'metadata is still delivered');
 
+    await w.helm.disable('helm.mock-model');
+    log = await seen();
+    assert.ok(log.some((e) => e.event === 'plugin.state' && e.payload.plugin === 'helm.mock-model' && e.payload.to === 'disabled'), 'plugin.state reaches running watchers');
+    assert.ok(!log.some((e) => e.event === 'plugin.state' && e.payload.plugin === 'test.watcher'), 'a plugin is not told about its own state');
+    await w.helm.enable('helm.mock-model');
+
     await w.helm.grant('test.watcher', 'conversation.read');
     await run(new Session(w.helm, { provider: 'helm.mock-model/mock' }), 'now you may read this');
     log = await seen();

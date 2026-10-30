@@ -48,7 +48,9 @@ export function permissionDiff(next: Manifest, current: PluginRecord): ConsentIt
       out.push({ ...toItem(p), change: 'new' });
       continue;
     }
-    const added = (p.scope ?? []).filter((s) => !(g.scope ?? []).includes(s));
+    // Wider = something the current grant does not already cover ("*" covers "api.x.com", so that is not wider).
+    const kind = permissionDef(p.id)?.scopeKind ?? 'none';
+    const added = (p.scope ?? []).filter((s) => !isNarrowerOrEqual(s, g.scope ?? [], kind));
     // Only flag wider scope if the user had granted the full previously-declared scope.
     if (added.length) out.push({ ...toItem(p), change: 'wider', addedScope: added });
   }
@@ -87,7 +89,7 @@ export function buildGrants(m: Manifest, decisions: GrantDecision[], version: st
 }
 
 /** A user may narrow a declared scope (e.g. "*" → "*.wikipedia.org", "${home}" → "${home}/notes"). */
-function isNarrowerOrEqual(entry: string, declared: string[], kind: string): boolean {
+export function isNarrowerOrEqual(entry: string, declared: string[], kind: string): boolean {
   if (declared.includes(entry)) return true;
   if (kind === 'host') {
     return declared.some((d) => d === '*' || (d.startsWith('*.') && (entry.endsWith(d.slice(1)) || entry === d.slice(2))));

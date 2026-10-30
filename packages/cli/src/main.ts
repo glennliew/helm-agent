@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { Helm } from '../../core/src/helm.ts';
 import { HOST_VERSION, PROTOCOL_VERSION } from '../../core/src/paths.ts';
 import { getDotted, setDotted, parseCliValue } from '../../core/src/store.ts';
-import { HelmError, ErrorCode } from '../../core/src/errors.ts';
+import { HelmError, ErrorCode, explain } from '../../core/src/errors.ts';
 import { permissionDef, riskOf } from '../../core/src/permissions/catalog.ts';
 import { sandboxAvailability, expectedIsolation, pythonRuntime, nodeRuntime } from '../../core/src/runtime/launch.ts';
 import { configFields } from '../../core/src/plugin-config.ts';
@@ -137,6 +137,20 @@ program.command('init').description('set up Helm and install the bundled plugins
     const ready = providers.find((p) => p.qualified !== entry.qualified && h.missingSecrets(p.pluginId).length === 0);
     if (missing.length && ready) out(c.dim(`  (no credentials yet? use ${ready.provider.title ?? ready.qualified}: helm provider use ${ready.qualified})`));
   }));
+program.command('explain [code]').description('what an error code means and what to do about it')
+  .action((code?: string) => {
+    const codes = Object.keys(ErrorCode);
+    const k = code?.toUpperCase().replace(/-/g, '_');
+    if (!k || !codes.includes(k)) {
+      if (code) { out(`${c.red('Unknown error code')} ${code}.`); process.exitCode = 1; }
+      out(table(['code', 'meaning'], codes.map((x) => [x, explain(x).title])));
+      return;
+    }
+    const info = explain(k);
+    out(`${c.bold(k)}  ${info.title}`);
+    if (info.hint) out(`\n${info.hint}`);
+  });
+
 program.command('doctor').description('check the environment, isolation and every plugin')
   .option('--json', 'machine-readable output')
   .action(act((o: { json?: boolean }) => {

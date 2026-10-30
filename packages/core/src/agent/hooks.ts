@@ -85,6 +85,19 @@ export function notifyWatchers(helm: Helm, event: string, payload: Record<string
   }
 }
 
+/**
+ * plugin.state events go only to watchers that are already running (they never start a plugin) and
+ * never to the plugin the event is about — otherwise an idle stop would restart the plugin forever.
+ */
+export function notifyStateWatchers(helm: Helm, payload: Record<string, unknown>) {
+  for (const h of helm.contributions().hooks) {
+    if (h.hook.event !== 'plugin.state' || h.hook.mode !== 'watch' || !h.available || h.pluginId === payload.plugin) continue;
+    const proc = helm.process(h.pluginId);
+    if (proc.state !== 'active') continue;
+    proc.call('hook/dispatch', { event: 'plugin.state', payload }, { timeoutMs: h.hook.timeoutMs ?? 5000 }).catch(() => { /* logged by supervisor */ });
+  }
+}
+
 /** Start plugins that have session hooks so the first tool call isn't delayed by cold start. */
 export async function warmSessionPlugins(helm: Helm) {
   const ids = new Set(helm.contributions().hooks.filter((h) => h.available).map((h) => h.pluginId));

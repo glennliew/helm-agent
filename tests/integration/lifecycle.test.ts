@@ -119,3 +119,22 @@ test('installing something that is not a plugin explains what is wrong', async (
   await assert.rejects(t.helm.prepareInstall(empty), (e: any) => e.code === ErrorCode.MANIFEST_INVALID && /helm-plugin\.json/.test(e.message));
   await assert.rejects(t.helm.prepareInstall('helm.does-not-exist'), (e: any) => /not found|no plugin|registr/i.test(e.message));
 });
+
+test('an update that asks for less gets less; covered scopes do not re-prompt; rollback restores the exact old grants', async () => {
+  const v1 = copyFixture('echo', (m) => { m.id = 'test.narrowing'; m.permissions = [{ id: 'net.http', scope: ['*'], reason: 'any host' }, { id: 'fs.read', scope: ['${workspace}'], reason: 'read' }]; });
+  await install(t.helm, v1);
+  const v2 = copyFixture('echo', (m) => {
+    m.id = 'test.narrowing'; m.version = '2.0.0';
+    m.permissions = [{ id: 'net.http', scope: ['api.example.com'], reason: 'one API' }, { id: 'fs.read', scope: ['${workspace}/docs'], reason: 'docs only' }];
+  });
+  const plan = await t.helm.prepareUpdate('test.narrowing', v2);
+  assert.deepEqual(plan.diff, [], '"*" already covers api.example.com and ${workspace} covers its docs folder: nothing to ask');
+  const { record, notes } = await t.helm.commitUpdate(plan, []);
+  const scope = (id: string) => record.grants.find((g) => g.id === id)?.scope;
+  assert.deepEqual(scope('net.http'), ['api.example.com']);
+  assert.deepEqual(scope('fs.read'), ['${workspace}/docs']);
+  assert.match(notes.join('\n'), /Narrowed "net\.http"/);
+  const back = await t.helm.rollback('test.narrowing');
+  assert.deepEqual(back.grants.find((g) => g.id === 'net.http')?.scope, ['*'], 'rollback snapshot is untouched by the update');
+  assert.deepEqual(back.grants.find((g) => g.id === 'fs.read')?.scope, ['${workspace}']);
+});

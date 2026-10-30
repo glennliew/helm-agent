@@ -20,6 +20,7 @@ import * as installer from './installer.ts';
 import type { GrantDecision } from './permissions/grants.ts';
 import { effectiveConfig, validateConfig } from './plugin-config.ts';
 import type { ValidateFunction } from 'ajv';
+import { notifyStateWatchers } from './agent/hooks.ts';
 
 export interface HelmOptions {
   home?: string;
@@ -87,6 +88,7 @@ export class Helm implements SupervisorHost, installer.InstallerHost {
     this.trace = opts.trace;
     this.onStderr = opts.onStderr;
     this.bus.setMaxListeners(100);
+    this.bus.onEvent('plugin.state', (p) => notifyStateWatchers(this, p as unknown as Record<string, unknown>));
   }
 
   config(): HostConfig {

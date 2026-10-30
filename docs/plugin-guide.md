@@ -160,6 +160,7 @@ React to host events: `session.start`, `session.end`, `message.user`, `model.res
 
 - `mode: "watch"` hooks are notifications. They can't change anything and the host doesn't wait for them. Message events (`message.user`, `model.response`) need the `conversation.read` permission. Without it, tool watch hooks still fire, but `input` and `output` are removed (listed in `payload.redacted`).
 - `mode: "intercept"` hooks (only `tool.before` and `tool.after`) are awaited in `priority` order (higher first) and may return `{ action: 'continue' }`, `{ action: 'block', reason }`, `{ action: 'ask', reason }` (the user decides) or `{ action: 'modify', input?, output?, reason? }`. They need the `tool.intercept` permission.
+- Plugins can talk to each other through events. `ctx.events.emit('indexed', {...})` from `acme.search` reaches any plugin with a `{ "event": "plugin.acme.search.indexed", "mode": "watch" }` hook, as `{ source, payload }`. That's loose coupling: no plugin calls another's code.
 - `onError: "block"` makes an intercept hook **fail closed**: if it crashes or times out, the call is blocked rather than allowed. Use this for policy plugins. `plugins/guard` is the reference.
 
 ### Commands

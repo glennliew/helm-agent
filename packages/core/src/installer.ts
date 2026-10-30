@@ -12,7 +12,7 @@ import type { SecretStore } from './permissions/secrets.ts';
 import { HelmError, ErrorCode } from './errors.ts';
 import { compatibilityProblem, formatProblems, readManifest } from './manifest/manifest.ts';
 import type { ManifestProblem } from './manifest/manifest.ts';
-import { buildGrants, consentItems, permissionDiff } from './permissions/grants.ts';
+import { buildGrants, consentItems, isNarrowerOrEqual, permissionDiff } from './permissions/grants.ts';
 import type { ConsentItem, GrantDecision } from './permissions/grants.ts';
 import { permissionDef } from './permissions/catalog.ts';
 import { validateConfig } from './plugin-config.ts';
@@ -216,9 +216,22 @@ export async function commitUpdate(host: InstallerHost, plan: InstallPlan, decis
   await host.stopPlugin(m.id, 'updating');
   if (plan.source.type !== 'link' && path.resolve(dest) !== path.resolve(r.dir)) copyPlugin(plan.dir, dest);
   plan.cleanup();
-  const kept = r.grants.filter((g) => (m.permissions ?? []).some((p) => p.id === g.id));
-  const dropped = r.grants.filter((g) => !kept.includes(g)).map((g) => g.id);
+  // Copies: r.grants becomes the rollback snapshot and must not change.
+  const kept = r.grants.filter((g) => (m.permissions ?? []).some((p) => p.id === g.id)).map((g) => ({ ...g, scope: g.scope ? [...g.scope] : undefined }));
+  const dropped = r.grants.filter((g) => !kept.some((k) => k.id === g.id)).map((g) => g.id);
   if (dropped.length) notes.push(`Permissions no longer requested were removed: ${dropped.join(', ')}`);
+  // A release that asks for less gets less: narrow kept grants to the new declared scope
+  // (unless the user is allowed to extend that scope themselves).
+  for (const g of kept) {
+    const p = (m.permissions ?? []).find((x) => x.id === g.id)!;
+    const kind = permissionDef(g.id)?.scopeKind ?? 'none';
+    if (!g.scope || !p.scope || p.userExtensible || kind === 'none') continue;
+    const next = Array.from(new Set([...g.scope.filter((s) => isNarrowerOrEqual(s, p.scope!, kind)), ...p.scope.filter((s) => isNarrowerOrEqual(s, g.scope!, kind))]));
+    if (next.length !== g.scope.length || next.some((s) => !g.scope!.includes(s))) {
+      notes.push(`Narrowed "${g.id}" to what ${m.version} declares: ${next.join(', ') || '(nothing)'}`);
+      g.scope = next;
+    }
+  }
   const grants = [...kept];
   const declined = [...r.declined];
   for (const item of plan.diff) {

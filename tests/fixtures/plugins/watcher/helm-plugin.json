@@ -16,7 +16,8 @@
     "hooks": [
       { "event": "message.user", "mode": "watch" },
       { "event": "tool.before", "mode": "watch" },
-      { "event": "tool.after", "mode": "watch" }
+      { "event": "tool.after", "mode": "watch" },
+      { "event": "plugin.state", "mode": "watch" }
     ]
   }
 }
