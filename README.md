@@ -143,6 +143,8 @@ packages/sdk-python         Python plugin SDK, stdlib only (+ helm_plugin_testin
 plugins/                    the six bundled plugins
 registry/index.json         bundled registry (starter set, preferred provider)
 templates/                  scaffolds used by `helm plugin new`
+examples/tides              small Python project with planted bugs, used by the walkthrough
+examples/test-runner        example plugin written in the walkthrough (process.exec, panel, command)
 docs/                       guides, protocol and manifest reference, JSON Schema
 tests/                      unit, integration, sandbox and CLI end-to-end tests
 scripts/demo.sh             the acceptance walkthrough
@@ -161,6 +163,7 @@ The suite covers manifest validation and compatibility, path, host and SSRF scop
 
 ## Documentation
 
+- [Walkthrough](docs/walkthrough.md): a real session end to end: fix a bug, build a plugin, revoke it
 - [Plugin Guide](docs/plugin-guide.md): write, test, debug and ship a plugin
 - [Manifest reference](docs/manifest-reference.md) and [JSON Schema](docs/schemas/plugin-manifest-v1.json)
 - [Protocol](docs/protocol.md): the host ↔ plugin wire protocol, v1.0

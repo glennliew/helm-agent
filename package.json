@@ -13,7 +13,7 @@
   },
   "scripts": {
     "helm": "node packages/cli/src/main.ts",
-    "test": "node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=4 \"tests/**/*.test.ts\" \"plugins/*/test/*.test.ts\"",
+    "test": "node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=4 \"tests/**/*.test.ts\" \"plugins/*/test/*.test.ts\" \"examples/*/test/*.test.ts\"",
     "test:sandbox": "HELM_TEST_SANDBOX=1 node --import ./packages/sdk-node/src/register.ts --test --test-concurrency=1 \"tests/**/*.sandbox.test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
     "demo": "zsh scripts/demo.sh",

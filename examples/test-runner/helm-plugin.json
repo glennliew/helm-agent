@@ -1,0 +1,54 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "local.test-runner",
+  "name": "Test Runner",
+  "version": "0.1.0",
+  "description": "Runs the project's Python unit tests so the agent can check its own changes.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    {
+      "id": "process.exec",
+      "scope": ["python3"],
+      "reason": "Run python3 -m unittest in your project. Helm runs it in a sandbox limited to the project, with no network access."
+    },
+    {
+      "id": "fs.read",
+      "scope": ["${workspace}"],
+      "reason": "The tests need to read your project's code."
+    }
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "run_tests",
+        "description": "Run the project's Python unit tests (python3 -m unittest discover) and report which tests passed and failed, with failure details. Use it after changing code to check your work. Pass `pattern` to run only matching tests.",
+        "effect": "exec",
+        "requires": ["process.exec"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": { "type": "string", "description": "Only run tests whose name contains this, e.g. test_units or PassageTest." }
+          },
+          "additionalProperties": false
+        }
+      }
+    ],
+    "commands": [
+      { "name": "run", "title": "Run the tests" }
+    ],
+    "panels": [
+      { "id": "tests", "title": "Tests", "description": "Result of the last test run." }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startDir": { "type": "string", "default": ".", "description": "Folder where unittest discovery starts." },
+        "timeoutSeconds": { "type": "integer", "default": 60, "minimum": 5, "maximum": 120, "description": "Stop a test run that takes longer than this." }
+      }
+    }
+  }
+}

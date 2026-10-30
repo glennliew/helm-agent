@@ -21,7 +21,10 @@ function parseDirectives(req: ProviderRequest, text: string) {
     const tool = findTool(req, m[1]!);
     let args: Record<string, unknown> = {};
     if (m[2]) { try { args = JSON.parse(m[2]); } catch { args = { __invalid_json: m[2] }; } }
-    if (tool) calls.push({ id: `call_${++counter}`, name: tool.name, arguments: args });
+    // An exact "plugin__tool" name is called even when it wasn't offered: real models do this with
+    // tools they remember from earlier turns, and the host must explain why such a call fails.
+    const name = tool?.name ?? (m[1]!.includes('__') ? m[1]! : undefined);
+    if (name) calls.push({ id: `call_${++counter}`, name, arguments: args });
   }
   const use = /\buse\s+([\w-]+)((?:\s+\w+=\S+)*)/.exec(text);
   if (!calls.length && use) {

@@ -1,0 +1,12 @@
+{
+  "name": "test-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "helm plugin dev .",
+    "test": "helm plugin test .",
+    "validate": "helm plugin validate .",
+    "pack": "helm plugin pack ."
+  }
+}

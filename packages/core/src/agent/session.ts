@@ -55,6 +55,10 @@ export class Session {
   private alwaysAllow = new Set<string>();
   private started = false;
   private transcript: string;
+  /** Tools offered to the model earlier in this conversation (exposed name → plugin label). */
+  private offered = new Map<string, string>();
+  /** Offered tools already reported to the user as unavailable, so each change is announced once. */
+  private announcedGone = new Set<string>();
 
   constructor(helm: Helm, opts: SessionOptions = {}) {
     this.helm = helm;
@@ -74,6 +78,41 @@ export class Session {
     return this.helm.contributions().tools.filter((t) => t.available);
   }
 
+  /**
+   * Add a host note at the current point of the conversation. It is attached to the latest user or
+   * tool message (some providers fold mid-conversation system messages into the system prompt, which
+   * would lose their position) and is clearly marked as coming from Helm, not the user.
+   */
+  private addHostNote(text: string) {
+    const note = `[Helm note: ${text}]`;
+    const last = this.messages.at(-1);
+    if (last && (last.role === 'user' || last.role === 'tool')) last.content = `${last.content}\n\n${note}`;
+    else this.messages.push({ role: 'user', content: note });
+    this.record({ role: 'host-note', text });
+  }
+
+  /**
+   * Tools the model was offered earlier in this conversation that can't run now (permission revoked,
+   * plugin disabled, quarantined or uninstalled). Without this, the model sees its own earlier calls to
+   * a tool that has silently vanished and may wrongly decide those results were never real.
+   */
+  toolChanges(): { gone: Array<{ exposedName: string; label: string; reason: string; pluginId?: string }>; note?: string } {
+    const all = new Map(this.helm.contributions().tools.map((t) => [t.exposedName, t]));
+    const gone: Array<{ exposedName: string; label: string; reason: string; pluginId?: string }> = [];
+    for (const [name, label] of this.offered) {
+      const t = all.get(name);
+      if (t?.available) continue;
+      gone.push({ exposedName: name, label, pluginId: t?.pluginId, reason: t ? (t.reason ?? 'unavailable') : 'its plugin is no longer installed' });
+    }
+    if (!gone.length) return { gone };
+    const note = [
+      'Change since earlier in this conversation: the user changed these plugins, so these tools you were offered before cannot run now:',
+      ...gone.map((g) => `- ${g.exposedName} (${g.label}): ${g.reason}`),
+      'Results these tools returned earlier in the conversation were real; do not doubt them. Do not call these tools now. If the user asks for them, say what is missing and that they can restore it from Plugins in the console or the helm plugin commands.',
+    ].join('\n');
+    return { gone, note };
+  }
+
   /** Run one user turn to completion (model ↔ tools loop). Never throws for plugin failures. */
   async send(text: string, emit: (e: SessionEvent) => void = () => {}, signal?: AbortSignal): Promise<string> {
     const helm = this.helm;
@@ -90,7 +129,37 @@ export class Session {
     for (let step = 1; step <= maxSteps; step++) {
       if (signal?.aborted) { emit({ type: 'error', error: { code: 'CANCELLED', message: 'Cancelled' } }); return finalText; }
       const tools = this.availableTools();
-      const system: ChatMessage = { role: 'system', content: systemPrompt(helm, tools, this.extraPrompt ?? helm.config().agent.systemPrompt) };
+      const changes = this.toolChanges();
+      // Each change is announced once to the user and written into the conversation itself, so the
+      // model keeps an accurate timeline after the state changes back (a system-prompt note alone
+      // disappears once the tool returns, and the model then doubts what it was told earlier).
+      const notes: string[] = [];
+      const lost = new Map<string, { label: string; reason: string; names: string[] }>();
+      for (const g of changes.gone) {
+        if (this.announcedGone.has(g.exposedName)) continue;
+        this.announcedGone.add(g.exposedName);
+        const key = `${g.label}\u0000${g.reason}`;
+        if (!lost.has(key)) lost.set(key, { label: g.label, reason: g.reason, names: [] });
+        lost.get(key)!.names.push(g.exposedName);
+      }
+      const short = (names: string[]) => names.map((n) => n.split('__').pop()).join(', ');
+      const one = (names: string[]) => names.length === 1;
+      for (const { label, reason, names } of lost.values()) {
+        emit({ type: 'warning', message: `${label}: ${short(names)} ${one(names) ? 'is' : 'are'} no longer available (${reason}).` });
+        notes.push(`${one(names) ? 'The tool' : 'The tools'} ${names.join(', ')} (${label}) became unavailable at this point: ${reason}. Results ${one(names) ? 'it' : 'they'} returned earlier were real.`);
+      }
+      const back = new Map<string, string[]>();
+      for (const t of tools) {
+        const label = `${t.pluginName}, ${t.pluginId}`;
+        if (this.announcedGone.delete(t.exposedName)) back.set(label, [...(back.get(label) ?? []), t.exposedName]);
+        this.offered.set(t.exposedName, label);
+      }
+      for (const [label, names] of back) {
+        emit({ type: 'warning', message: `${label}: ${short(names)} ${one(names) ? 'is' : 'are'} available again.` });
+        notes.push(`${one(names) ? 'The tool' : 'The tools'} ${names.join(', ')} (${label}) ${one(names) ? 'is' : 'are'} available again: the user restored ${one(names) ? 'it' : 'them'}. ${one(names) ? 'It' : 'They'} really ${one(names) ? 'was' : 'were'} unavailable before this point.`);
+      }
+      if (notes.length) this.addHostNote(notes.join(' '));
+      const system: ChatMessage = { role: 'system', content: [systemPrompt(helm, tools, this.extraPrompt ?? helm.config().agent.systemPrompt), changes.note].filter(Boolean).join('\n') };
       emit({ type: 'status', message: step === 1 ? 'thinking' : `thinking (step ${step})` });
       let res;
       try {
@@ -128,12 +197,25 @@ export class Session {
     const helm = this.helm;
     const started = Date.now();
     const entry = tools.find((t) => t.exposedName === call.name);
-    const fail = (code: string, message: string, blocked = false, hint?: string) => {
-      emit({ type: 'tool.end', id: call.id, tool: call.name, plugin: entry?.pluginId ?? '?', ok: false, blocked, summary: message, error: { code, message, hint }, durationMs: Date.now() - started });
+    const fail = (code: string, message: string, blocked = false, hint?: string, plugin?: string) => {
+      emit({ type: 'tool.end', id: call.id, tool: call.name, plugin: plugin ?? entry?.pluginId ?? '?', ok: false, blocked, summary: message, error: { code, message, hint }, durationMs: Date.now() - started });
       this.record({ role: 'tool', tool: call.name, ok: false, code, message });
-      return JSON.stringify({ error: { code, message, ...(blocked ? { note: 'This call was blocked by policy. Do not retry it; tell the user.' } : {}) } });
+      return JSON.stringify({ error: { code, message, ...(hint ? { hint } : {}), ...(blocked ? { note: 'This call was blocked by policy. Do not retry it; tell the user.' } : {}) } });
     };
-    if (!entry) return fail('NOT_IMPLEMENTED', `Unknown tool "${call.name}"`);
+    if (!entry) {
+      // The model may still call a tool it saw earlier in the conversation. If an installed plugin
+      // provides it, say exactly why it can't run and how the user can fix that.
+      const known = this.helm.contributions().tools.find((t) => t.exposedName === call.name);
+      if (known) {
+        const fix = known.code === 'PERMISSION_DENIED'
+          ? `The user can grant it in the console (Plugins → ${known.pluginId} → Permissions) or with \`helm plugin grant ${known.pluginId} <permission>\`.`
+          : known.code === 'PLUGIN_DISABLED'
+            ? `The user can enable it with \`helm plugin enable ${known.pluginId}\`.`
+            : `The user can see the details with \`helm plugin info ${known.pluginId}\`.`;
+        return fail(ErrorCode.TOOL_UNAVAILABLE, `${known.pluginName} (${known.pluginId}) is installed, but its tool "${known.tool.name}" can't run right now: ${known.reason ?? 'unavailable'}.`, false, `${fix} Don't retry until they have; tell them what is missing.`, known.pluginId);
+      }
+      return fail('NOT_IMPLEMENTED', `No installed plugin provides a tool named "${call.name}".`);
+    }
     let input = call.arguments ?? {};
     emit({ type: 'tool.start', id: call.id, tool: call.name, plugin: entry.pluginId, input });
 

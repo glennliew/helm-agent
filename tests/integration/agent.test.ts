@@ -89,11 +89,18 @@ test('a crashing fail-closed hook blocks the call instead of letting it through'
 
 test('disabling a plugin removes its tools from the agent', async () => {
   await t.helm.disable('helm.files');
-  const s = mock();
-  const { ends, reply } = await run(s, 'call files__read_file {"path":"notes.txt"}');
-  assert.equal(ends.length, 0, 'the model was never offered the tool');
-  assert.match(reply, /tools available: 0/);
-  await t.helm.enable('helm.files');
+  try {
+    const s = mock();
+    assert.equal(s.availableTools().some((x) => x.pluginId === 'helm.files'), false, 'the model is not offered the tool');
+    // A model that still calls it (remembering an earlier turn) gets an explanation, and nothing runs.
+    const { ends } = await run(s, 'call files__read_file {"path":"notes.txt"}');
+    assert.equal(ends[0]!.ok, false);
+    assert.equal(ends[0]!.error?.code, 'TOOL_UNAVAILABLE');
+    assert.match(ends[0]!.error!.message, /disabled/);
+    assert.match(ends[0]!.error!.hint ?? '', /helm plugin enable helm\.files/);
+  } finally {
+    await t.helm.enable('helm.files');
+  }
 });
 
 // ---------------------------------------------------------------- OpenRouter provider (offline)
@@ -174,4 +181,53 @@ test('watch hooks see conversation content only with conversation.read', async (
     log = await seen();
     assert.ok(log.some((e) => e.event === 'message.user' && e.payload.text === 'now you may read this'));
   } finally { await w.cleanup(); }
+});
+
+test('a tool the model remembers but whose plugin lost a required permission is explained, not "unknown"', async () => {
+  await t.helm.revoke('helm.files', 'fs.read');
+  try {
+    const { ends } = await run(mock(), 'call files__read_file {"path":"notes.txt"}');
+    assert.equal(ends[0]!.ok, false);
+    assert.equal(ends[0]!.plugin, 'helm.files');
+    assert.equal(ends[0]!.error?.code, 'TOOL_UNAVAILABLE');
+    assert.match(ends[0]!.error!.message, /Files \(helm\.files\) is installed.*missing required permission\(s\): fs\.read/);
+    assert.match(ends[0]!.error!.hint ?? '', /helm plugin grant helm\.files/);
+    const unknown = await run(mock(), 'call nothing__here {}');
+    assert.equal(unknown.ends[0]!.error?.code, 'NOT_IMPLEMENTED');
+  } finally {
+    await t.helm.grant('helm.files', 'fs.read');
+  }
+  const again = await run(mock(), 'call files__read_file {"path":"notes.txt"}');
+  assert.equal(again.ends[0]!.ok, true);
+});
+
+test('when a tool offered earlier in the conversation becomes unavailable, the user is warned once and the model is told why', async () => {
+  const s = mock();
+  const first = await run(s, 'call files__read_file {"path":"notes.txt"}');
+  assert.equal(first.ends[0]!.ok, true);
+  assert.equal(s.toolChanges().gone.length, 0);
+  await t.helm.revoke('helm.files', 'fs.read');
+  try {
+    const changes = s.toolChanges();
+    assert.ok(changes.gone.some((g) => g.exposedName === 'files__read_file' && /fs\.read/.test(g.reason)));
+    assert.match(changes.note ?? '', /were real/);
+    const second = await run(s, 'hello again');
+    const warnings = second.events.filter((e: any) => e.type === 'warning').map((e: any) => e.message);
+    assert.equal(warnings.length, 1, 'one notice per plugin, not per tool');
+    assert.match(warnings[0], /^Files, helm\.files: .*read_file.* are no longer available \(missing required permission\(s\): fs\.read\)\.$/);
+    const third = await run(s, 'and again');
+    assert.equal(third.events.filter((e: any) => e.type === 'warning' && /read_file/.test(e.message)).length, 0, 'announced only once');
+    // The change is written into the conversation where it happened, marked as a Helm note.
+    const noted = s.messages.find((m) => m.role === 'user' && m.content.startsWith('hello again'));
+    assert.match(noted?.content ?? '', /\[Helm note: The tools .*files__read_file.* \(Files, helm\.files\) became unavailable at this point: missing required permission\(s\): fs\.read\. Results they returned earlier were real\.\]/);
+  } finally {
+    await t.helm.grant('helm.files', 'fs.read');
+  }
+  assert.equal(s.toolChanges().gone.length, 0, 'restored tools drop out of the note');
+  const fourth = await run(s, 'it is back');
+  assert.ok(fourth.events.some((e: any) => e.type === 'warning' && /read_file.* are available again/.test(e.message)));
+  const back = s.messages.find((m) => m.role === 'user' && m.content.startsWith('it is back'));
+  assert.match(back?.content ?? '', /available again: the user restored them\. They really were unavailable before this point\./);
+  const fifth = await run(s, 'quiet now');
+  assert.equal(fifth.events.filter((e: any) => e.type === 'warning').length, 0);
 });

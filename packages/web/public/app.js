@@ -226,6 +226,7 @@ function Chat({ overview }) {
   const [status, setStatus] = useState('');
   const [text, setText] = useState('');
   const logRef = useRef();
+  const stick = useRef(true); // follow new output only while the reader is at the bottom
   const provider = overview?.provider;
 
   const ensureSession = async () => {
@@ -256,12 +257,14 @@ function Chat({ overview }) {
     else if (ev.type === 'idle') { setBusy(false); setStatus(''); }
     else setItems((xs) => apply(xs, ev));
   }, [sessionId]);
-  useEffect(() => { logRef.current && (logRef.current.scrollTop = logRef.current.scrollHeight); }, [items, status]);
+  useEffect(() => { const el = logRef.current; if (el && stick.current) el.scrollTop = el.scrollHeight; }, [items, status, busy]);
+  const onScroll = (e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; };
 
   const send = async () => {
     const t = text.trim();
     if (!t || busy) return;
     setText('');
+    stick.current = true;
     setBusy(true);
     setStatus('thinking');
     try { const id = await ensureSession(); await api(`/api/sessions/${id}/messages`, { method: 'POST', body: { text: t } }); } catch (e) { toastError(e); setBusy(false); setStatus(''); }
@@ -275,7 +278,7 @@ function Chat({ overview }) {
         <div><b>Chat</b> <span class="muted small">${provider?.error ? '' : `${provider?.qualified ?? ''} · ${provider?.model ?? ''}`} · ${overview?.tools.ready ?? 0} tools ready</span></div>
         <div class="row"><button class="btn sm" onClick=${newChat}>New chat</button></div>
       </div>
-      <div class="chat-log" ref=${logRef}>
+      <div class="chat-log" ref=${logRef} onScroll=${onScroll}>
         ${provider?.error && html`<${ErrorBox} error=${provider.error} />`}
         ${items.length === 0 && !provider?.error && html`<div class="empty">Ask Helm something. Everything it can do here comes from your plugins:
           <div class="welcome">${(overview?.plugins ?? []).filter((p) => p.enabled && p.availability?.available && (p.counts.tools || p.counts.hooks)).map((p) => html`<div><b>${p.name}</b> <span class="muted">${p.description}</span></div>`)}</div></div>`}
@@ -481,12 +484,14 @@ function AuditTable({ rows }) {
     ${rows.map((r) => html`<tr><td class="mono">${r.ts.slice(5, 19).replace('T', ' ')}</td><td>${r.plugin}</td><td>${r.kind}</td><td>${r.permission ? html`<span class="mono">${r.permission}</span> ` : ''}${r.action}</td><td class="mono" style="max-width:280px;word-break:break-all">${r.target || ''}</td><td>${r.decision === 'denied' ? html`<${Badge} tone="bad">denied<//>` : r.decision === 'allowed' ? html`<${Badge} tone="ok">allowed<//>` : html`<${Badge}>info<//>`}${r.reason && html`<div class="muted">${r.reason}</div>`}</td></tr>`)}
   </tbody></table></div>`;
 }
-function Audit() {
+function Audit({ overview }) {
   const [denied, setDenied] = useState(false);
-  const [state, reload] = useAsync(() => api(`/api/audit?limit=300${denied ? '&denied=1' : ''}`), [denied]);
+  const [plugin, setPlugin] = useState('');
+  const [state, reload] = useAsync(() => api(`/api/audit?limit=300${denied ? '&denied=1' : ''}${plugin ? `&plugin=${encodeURIComponent(plugin)}` : ''}`), [denied, plugin]);
   useEvents((type) => { if (type === 'changed' || type === 'session') reload(); }, [reload]);
   return html`<div class="page"><div class="spread"><div><h1>Audit trail</h1><p class="sub">Every grant, revocation, approval, hook decision and permission check — newest first.</p></div>
-    <label class="switch"><input type="checkbox" checked=${denied} onChange=${(e) => setDenied(e.target.checked)} /> only denials</label></div>
+    <div class="row"><select style="width:auto" value=${plugin} onChange=${(e) => setPlugin(e.target.value)} aria-label="Filter by plugin"><option value="">all plugins</option>${(overview?.plugins ?? []).map((x) => html`<option value=${x.id}>${x.id}</option>`)}</select>
+    <label class="switch"><input type="checkbox" checked=${denied} onChange=${(e) => setDenied(e.target.checked)} /> only denials</label></div></div>
     <${AuditTable} rows=${state.data} /></div>`;
 }
 
@@ -569,7 +574,7 @@ function App() {
       ${view.name === 'plugin' && html`<${PluginDetail} id=${view.id} go=${go} setPlan=${setPlan} />`}
       ${view.name === 'market' && html`<${Market} go=${go} setPlan=${setPlan} />`}
       ${view.name === 'tools' && html`<${Tools} />`}
-      ${view.name === 'audit' && html`<${Audit} />`}
+      ${view.name === 'audit' && html`<${Audit} overview=${overview} />`}
       ${view.name === 'settings' && html`<${Settings} overview=${overview} refresh=${refresh} />`}
     </main>
     ${plan && html`<${Consent} plan=${plan} onCancel=${() => setPlan(undefined)} onDone=${(p) => { setPlan(undefined); refresh(); go('plugin', p.id); }} />`}
