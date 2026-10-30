@@ -90,7 +90,7 @@ Beyond plugin permissions, you control the **agent**: `approvals` in `config.jso
 
 ## The audit log
 
-Every broker decision (allowed or denied, with permission, target and reason), every approval, every hook block and every lifecycle change (install, update, rollback, grant, revoke, trust, enable, disable, crash, quarantine) is appended to `~/.helm-agent/audit.jsonl` with secrets redacted. Browse it with `helm audit [--plugin <id>] [--denied]` or the console's Activity view.
+Every broker decision (allowed or denied, with permission, target and reason), every approval, every hook block and every lifecycle change (install, update, rollback, grant, revoke, trust, enable, disable, crash, quarantine) is appended to `~/.helm-agent/audit.jsonl` with secrets redacted. Browse it with `helm audit [--plugin <id>] [--denied]` or the console's Audit trail.
 
 ## Limitations
 

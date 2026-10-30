@@ -59,12 +59,12 @@ helm serve --open        # http://127.0.0.1:4317, opened with a one-time access 
 
 The console shows the same things as the CLI:
 
-- **Chat**, with live tool calls, approvals as dialogs, and plugin panels alongside.
-- **Plugins**: status, isolation, permissions you can grant and revoke, settings forms generated from each plugin's schema, logs and health.
-- **Marketplace**: registry search and install with the consent screen.
-- **Activity**: the audit log and live events.
-- **Logs** and **Secrets**: per-plugin logs, and secret names (never values).
-- **Settings**: approvals, providers and registries.
+- **Chat**: live tool-call cards showing which plugin served each call, approvals as dialogs, and plugin panels (such as Git's repository view and Guard's activity) alongside.
+- **Plugins**: one page per plugin, with tabs for Overview (runtime, isolation, health, contributions), Permissions (grant and revoke), Settings (a form generated from the plugin's schema), Secrets (names only, never values), Logs and Activity.
+- **Marketplace**: registry search, and install through the same consent screen as the CLI.
+- **Tools & commands**: everything plugins contribute, and why anything is unavailable.
+- **Audit trail**: every grant, broker decision, hook block and approval.
+- **Settings**: approvals, the default provider and model, and registries.
 
 The console listens on 127.0.0.1 only and requires the token in the link it prints. Stopping `helm serve` invalidates the token.
 
