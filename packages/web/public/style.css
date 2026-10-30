@@ -147,3 +147,5 @@ label.field { display: block; margin-bottom: 12px; }
 label.field > span { display: block; font-weight: 550; margin-bottom: 3px; }
 label.field small { display: block; color: var(--muted); margin-top: 2px; }
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.welcome { margin: 14px auto 0; max-width: 560px; text-align: left; display: grid; gap: 6px; font-size: 13px; }

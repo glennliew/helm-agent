@@ -123,7 +123,7 @@ export interface PluginRecord {
   config: Record<string, unknown>;
   limitOverrides?: PluginLimits;
   health: PluginHealth;
-  previous?: { version: string; dir: string; grants: Grant[]; config: Record<string, unknown> };
+  previous?: { version: string; dir: string; grants: Grant[]; config: Record<string, unknown>; source?: PluginRecord['source'] };
 }
 
 export interface StateFile {

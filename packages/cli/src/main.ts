@@ -9,6 +9,7 @@ import { permissionDef, riskOf } from '../../core/src/permissions/catalog.ts';
 import { sandboxAvailability, expectedIsolation, pythonRuntime, nodeRuntime } from '../../core/src/runtime/launch.ts';
 import { configFields } from '../../core/src/plugin-config.ts';
 import { formatProblems } from '../../core/src/manifest/manifest.ts';
+import { registryDefaults } from '../../core/src/installer.ts';
 import { c, out, json, table, printError, renderUI, sym, stateBadge, riskBadge, ago } from './ui.ts';
 import { Prompter, collectConsent, printConsent, cliApprover } from './prompt.ts';
 
@@ -100,7 +101,9 @@ program.command('init').description('set up Helm and install the bundled plugins
     const h = helm(o);
     if (o.secrets) h.configStore.update((cfg) => { cfg.secrets.backend = o.secrets === 'file' ? 'file' : 'keychain'; });
     out(`${c.bold('Helm init')} ${c.dim(`home ${h.paths.home}`)}`);
-    const wanted = o.only ? o.only.split(',').map((s) => s.trim()) : ['helm.files', 'helm.git', 'helm.web', 'helm.guard', 'helm.openrouter', 'helm.mock-model'];
+    const defaults = registryDefaults(h.config());
+    const wanted = o.only ? o.only.split(',').map((s) => s.trim()) : defaults.starter;
+    if (!wanted.length) out(c.yellow(`  ${sym.warn} your registries mark no starter plugins; browse with: helm plugin search`));
     for (const id of wanted) {
       if (h.state.get(id)) { out(c.dim(`  ${sym.ok} ${id} already installed`)); continue; }
       const plan = await h.prepareInstall(id);
@@ -110,13 +113,30 @@ program.command('init').description('set up Helm and install the bundled plugins
       notes.forEach((n) => out(c.yellow(`  ${sym.warn} ${n}`)));
       out(`${c.green(sym.ok)} installed ${record.id}@${record.version}${record.enabled ? '' : c.yellow(' (disabled)')}`);
     }
-    if (!h.config().provider && h.state.get('helm.openrouter')) h.configStore.update((cfg) => { cfg.provider = 'helm.openrouter/openrouter'; });
-    out(`\n  ${c.bold('Next')}: add your OpenRouter key and start chatting:`);
-    out(`    helm secrets set helm.openrouter API_KEY`);
+    // Pick a default provider among installed provider plugins (the registry may express a preference).
+    // A provider that only lacks the OS sandbox still counts: the user can run from a normal terminal or trust it.
+    const usable = (p: { available: boolean; code?: string }) => p.available || p.code === ErrorCode.ISOLATION_UNAVAILABLE;
+    const providers = h.providers().filter(usable);
+    if (!h.config().provider && providers.length) {
+      const pick = providers.find((p) => p.qualified === defaults.preferredProvider) ?? providers[0]!;
+      h.configStore.update((cfg) => { cfg.provider = pick.qualified; });
+    }
+    const entry = providers.find((p) => p.qualified === h.config().provider);
+    if (!entry) {
+      out(`\n  ${c.bold('Next')}: install a model provider plugin: helm plugin search provider`);
+      return;
+    }
+    if (!entry.available) {
+      out(c.yellow(`\n  ${sym.warn} The OS sandbox cannot be applied here (${sandboxAvailability().reason ?? 'unavailable'}).`));
+      out(c.yellow(`    Untrusted plugins will refuse to start. Run Helm from a normal terminal, or trust specific plugins: helm plugin trust <id>`));
+    }
+    const missing = h.missingSecrets(entry.pluginId);
+    out(`\n  ${c.bold('Next')}: ${missing.length ? `add credentials for ${entry.provider.title ?? entry.qualified}, then start chatting` : 'start chatting'}:`);
+    for (const n of missing) out(`    helm secrets set ${entry.pluginId} ${n}`);
     out(`    helm chat`);
-    out(c.dim(`  (no key? try the offline mock: helm provider use helm.mock-model/mock)`));
+    const ready = providers.find((p) => p.qualified !== entry.qualified && h.missingSecrets(p.pluginId).length === 0);
+    if (missing.length && ready) out(c.dim(`  (no credentials yet? use ${ready.provider.title ?? ready.qualified}: helm provider use ${ready.qualified})`));
   }));
-
 program.command('doctor').description('check the environment, isolation and every plugin')
   .option('--json', 'machine-readable output')
   .action(act((o: { json?: boolean }) => {
@@ -129,14 +149,14 @@ program.command('doctor').description('check the environment, isolation and ever
     const sb = sandboxAvailability();
     checks.push({ check: 'sandbox', ok: sb.available ? true : 'warn', detail: sb.available ? 'macOS sandbox-exec works: strict isolation' : sb.reason ?? 'unavailable', fix: sb.available ? undefined : 'Run Helm from a normal terminal. Untrusted plugins will refuse to start until then.' });
     const git = spawnSync('git', ['--version'], { encoding: 'utf8' });
-    checks.push({ check: 'git', ok: git.status === 0 ? true : 'warn', detail: git.status === 0 ? git.stdout.trim() : 'git not found (needed by helm.git and git installs)' });
+    checks.push({ check: 'git', ok: git.status === 0 ? true : 'warn', detail: git.status === 0 ? git.stdout.trim() : 'git not found (needed to install plugins from git URLs, and by plugins that run git)' });
     const st = fs.statSync(h.paths.home);
     checks.push({ check: 'home', ok: (st.mode & 0o077) === 0 ? true : 'warn', detail: `${h.paths.home} mode ${(st.mode & 0o777).toString(8)}`, fix: (st.mode & 0o077) === 0 ? undefined : `chmod 700 ${h.paths.home}` });
     checks.push({ check: 'secrets', ok: true, detail: `backend: ${h.config().secrets.backend}` });
     try {
       const { entry, model } = h.resolveProvider();
-      const hasKey = entry.pluginId === 'helm.mock-model' || h.secrets.list(entry.pluginId).length > 0;
-      checks.push({ check: 'provider', ok: hasKey ? true : 'warn', detail: `${entry.qualified} · ${model ?? 'default'}${hasKey ? '' : ' · no API key stored'}`, fix: hasKey ? undefined : `helm secrets set ${entry.pluginId} API_KEY` });
+      const missing = h.missingSecrets(entry.pluginId);
+      checks.push({ check: 'provider', ok: missing.length ? 'warn' : true, detail: `${entry.qualified} · ${model ?? 'default'}${missing.length ? ` · missing secret(s): ${missing.join(', ')}` : ''}`, fix: missing.length ? missing.map((n) => `helm secrets set ${entry.pluginId} ${n}`).join(' && ') : undefined });
     } catch (e) { checks.push({ check: 'provider', ok: 'warn', detail: (e as Error).message, fix: 'helm init, then helm provider use <plugin/provider>' }); }
     for (const { record, manifest } of h.installed()) {
       const a = h.availability(record.id);
@@ -254,7 +274,7 @@ provider.command('list').description('list providers').action(act(() => {
   out(table(['provider', 'title', 'default model', 'status'], h.providers().map((p) => [(cfg.provider === p.qualified ? c.green('● ') : '  ') + p.qualified, p.provider.title, p.provider.defaultModel ?? '', p.available ? c.green('ready') : c.yellow(p.reason ?? '')])));
   if (cfg.model) out(c.dim(`  model override: ${cfg.model}`));
 }));
-provider.command('use').description('choose the default provider (and optionally model)').argument('<provider>', 'plugin/provider, e.g. helm.openrouter/openrouter')
+provider.command('use').description('choose the default provider (and optionally model)').argument('<provider>', 'qualified provider id: <plugin-id>/<provider-id> (see helm provider list)')
   .option('-m, --model <id>', 'default model id')
   .action(act((spec: string, o: { model?: string }) => {
     const h = helm();
@@ -436,7 +456,8 @@ for (const [name, desc] of [['enable', 'allow the plugin to run'], ['disable', '
     else if (name === 'trust') await h.setTrusted(id, true);
     else if (name === 'untrust') await h.setTrusted(id, false);
     else await h.reset(id);
-    out(`${c.green(sym.ok)} ${id}: ${name === 'reset' ? 'health reset' : `${name}d`.replace('eed', 'ed')} ${c.dim(`→ ${statusOf(h, id)}`)}`);
+    const done = { enable: 'enabled', disable: 'disabled', trust: 'trusted', untrust: 'untrusted', reset: 'health reset' }[name];
+    out(`${c.green(sym.ok)} ${id}: ${done} ${c.dim(`→ ${statusOf(h, id)}`)}`);
   }));
 }
 
@@ -454,13 +475,13 @@ plugin.command('permissions').alias('perms').description('declared vs granted pe
 plugin.command('grant').argument('<id>').argument('<permission>').option('--scope <list>', 'comma-separated scope').option('--ask', 'ask me each time it is used')
   .action(act(async (id: string, perm: string, o: { scope?: string; ask?: boolean }) => {
     await helm().grant(id, perm, { scope: o.scope?.split(',').map((s) => s.trim()), mode: o.ask ? 'ask' : undefined });
-    out(`${c.green(sym.ok)} granted ${perm} to ${id}${o.scope ? ` (${o.scope})` : ''} ${c.dim('· takes effect on next start')}`);
+    out(`${c.green(sym.ok)} granted ${perm} to ${id}${o.scope ? ` (${o.scope})` : ''} ${c.dim('· the broker allows it from the next call; the OS sandbox widens when the plugin next starts')}`);
   }));
 
 plugin.command('revoke').argument('<id>').argument('<permission>').option('--scope <list>', 'revoke only these scope entries')
   .action(act(async (id: string, perm: string, o: { scope?: string }) => {
     await helm().revoke(id, perm, { scope: o.scope?.split(',').map((s) => s.trim()) });
-    out(`${c.green(sym.ok)} revoked ${perm}${o.scope ? ` (${o.scope})` : ''} from ${id} ${c.dim('· the plugin was restarted so its sandbox shrinks too')}`);
+    out(`${c.green(sym.ok)} revoked ${perm}${o.scope ? ` (${o.scope})` : ''} from ${id} ${c.dim('· denied from the next call; a running plugin is restarted so its OS sandbox shrinks too')}`);
   }));
 
 plugin.command('config').description('show or change plugin settings').argument('<id>').argument('[action]', 'set | unset').argument('[key]').argument('[value]')

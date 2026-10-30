@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { ErrorCode } from '../../packages/core/src/errors.ts';
 import { makeHelm, install, tool, text, copyFixture, FIXTURES } from '../helpers.ts';
@@ -79,6 +80,22 @@ test('version-incompatible plugins are refused at install with an explanation', 
   await assert.rejects(t.helm.prepareInstall(dir), (e: any) => e.code === ErrorCode.INCOMPATIBLE_VERSION && /9\.0\.0/.test(e.message));
   const proto = copyFixture('echo', (m) => { m.id = 'test.proto2'; m.engines.protocol = '^2.0'; });
   await assert.rejects(t.helm.prepareInstall(proto), (e: any) => e.code === ErrorCode.INCOMPATIBLE_VERSION);
+});
+
+test('an installed plugin that becomes incompatible is shown as such and never spawned', async () => {
+  const dir = copyFixture('echo', (m) => { m.id = 'test.oldie'; });
+  await install(t.helm, dir, { link: true });
+  const file = path.join(dir, 'helm-plugin.json');
+  const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+  m.engines.helm = '>=9.0.0';
+  fs.writeFileSync(file, JSON.stringify(m, null, 2));
+  const later = new Date(Date.now() + 2000);
+  fs.utimesSync(file, later, later);
+  const a = t.helm.availability('test.oldie');
+  assert.equal(a.available, false);
+  assert.equal(a.code, ErrorCode.INCOMPATIBLE_VERSION);
+  await assert.rejects(t.helm.invokeTool(tool(t.helm, 'oldie__echo'), { text: 'x' }), (e: any) => e.code === ErrorCode.INCOMPATIBLE_VERSION);
+  assert.equal(t.helm.runningProcess('test.oldie'), undefined, 'must not be spawned');
 });
 
 test('memory limit kills a runaway plugin without hurting the host', { timeout: 30_000 }, async () => {

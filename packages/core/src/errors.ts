@@ -59,7 +59,7 @@ const CATALOG: Record<ErrorCode, ErrorInfo> = {
   CANCELLED: { title: 'The operation was cancelled', hint: '' },
   NOT_IMPLEMENTED: { title: 'The plugin does not implement this', hint: 'The manifest declares something the code does not handle. Report it to the plugin author.' },
   PROVIDER_ERROR: { title: 'The model provider returned an error', hint: 'Check the provider plugin logs and your API key (`helm secrets list <id>`).' },
-  NO_PROVIDER: { title: 'No model provider is available', hint: 'Install and enable a provider plugin, e.g. `helm plugin install helm.openrouter`, then `helm provider use <plugin>/<provider>`.' },
+  NO_PROVIDER: { title: 'No model provider is available', hint: 'Install and enable a provider plugin (`helm plugin search provider`), then `helm provider use <plugin>/<provider>`.' },
   TOOL_ERROR: { title: 'The tool reported an error', hint: '' },
   INSTALL_FAILED: { title: 'Installation failed', hint: 'Nothing was changed. Fix the problem above and retry.' },
   CONSENT_REQUIRED: { title: 'Your consent is required', hint: 'Re-run interactively, or pass --yes / --grant to accept the requested permissions.' },

@@ -2,11 +2,87 @@
   "name": "Helm bundled plugins",
   "description": "First-party plugins that ship with Helm. Paths are relative to this file.",
   "plugins": [
-    { "id": "helm.files", "name": "Files", "version": "1.0.0", "source": "../plugins/files", "tags": ["filesystem", "code", "read", "edit"], "description": "Browse, search, read and (optionally) edit files in your workspace." },
-    { "id": "helm.web", "name": "Web", "version": "1.0.0", "source": "../plugins/web", "tags": ["web", "search", "fetch", "python"], "description": "Fetch web pages as readable text and search the web. Written in Python." },
-    { "id": "helm.guard", "name": "Guard", "version": "1.0.0", "source": "../plugins/guard", "tags": ["security", "policy", "hooks", "redaction"], "description": "Blocks access to secrets, asks before risky actions and redacts credentials from tool output." },
-    { "id": "helm.git", "name": "Git", "version": "1.0.0", "source": "../plugins/git", "tags": ["git", "vcs", "code"], "description": "Status, diffs, history and commits for the workspace repository." },
-    { "id": "helm.openrouter", "name": "OpenRouter", "version": "1.0.0", "source": "../plugins/openrouter", "tags": ["provider", "llm", "openai-compatible"], "description": "Model provider for OpenRouter with tool calling, fallbacks and a model policy." },
-    { "id": "helm.mock-model", "name": "Mock Model", "version": "1.0.0", "source": "../plugins/mock-model", "tags": ["provider", "testing", "offline"], "description": "Deterministic offline model provider for tests and plugin development." }
-  ]
+    {
+      "id": "helm.files",
+      "name": "Files",
+      "version": "1.0.0",
+      "source": "../plugins/files",
+      "tags": [
+        "filesystem",
+        "code",
+        "read",
+        "edit"
+      ],
+      "description": "Browse, search, read and (optionally) edit files in your workspace.",
+      "starter": true
+    },
+    {
+      "id": "helm.web",
+      "name": "Web",
+      "version": "1.0.0",
+      "source": "../plugins/web",
+      "tags": [
+        "web",
+        "search",
+        "fetch",
+        "python"
+      ],
+      "description": "Fetch web pages as readable text and search the web. Written in Python.",
+      "starter": true
+    },
+    {
+      "id": "helm.guard",
+      "name": "Guard",
+      "version": "1.0.0",
+      "source": "../plugins/guard",
+      "tags": [
+        "security",
+        "policy",
+        "hooks",
+        "redaction"
+      ],
+      "description": "Blocks access to secrets, asks before risky actions and redacts credentials from tool output.",
+      "starter": true
+    },
+    {
+      "id": "helm.git",
+      "name": "Git",
+      "version": "1.0.0",
+      "source": "../plugins/git",
+      "tags": [
+        "git",
+        "vcs",
+        "code"
+      ],
+      "description": "Status, diffs, history and commits for the workspace repository.",
+      "starter": true
+    },
+    {
+      "id": "helm.openrouter",
+      "name": "OpenRouter",
+      "version": "1.0.0",
+      "source": "../plugins/openrouter",
+      "tags": [
+        "provider",
+        "llm",
+        "openai-compatible"
+      ],
+      "description": "Model provider for OpenRouter with tool calling, fallbacks and a model policy.",
+      "starter": true
+    },
+    {
+      "id": "helm.mock-model",
+      "name": "Mock Model",
+      "version": "1.0.0",
+      "source": "../plugins/mock-model",
+      "tags": [
+        "provider",
+        "testing",
+        "offline"
+      ],
+      "description": "Deterministic offline model provider for tests and plugin development.",
+      "starter": true
+    }
+  ],
+  "preferredProvider": "helm.openrouter/openrouter"
 }

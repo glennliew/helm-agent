@@ -56,6 +56,8 @@ export class PluginProcess {
   private peer?: RpcPeer;
   private starting?: Promise<void>;
   private stderrTail: string[] = [];
+  /** First out-of-memory line seen; kept separately because the stack dump that follows pushes it out of the tail. */
+  private oomLine?: string;
   private stderrBuf = '';
   private running = 0;
   private queue: Array<() => void> = [];
@@ -116,6 +118,7 @@ export class PluginProcess {
     while ((nl = this.stderrBuf.indexOf('\n')) !== -1) {
       const line = this.stderrBuf.slice(0, nl);
       this.stderrBuf = this.stderrBuf.slice(nl + 1);
+      if (!this.oomLine && /heap out of memory|Reached heap limit|Allocation failed|MemoryError/.test(line)) this.oomLine = redactor.redact(line).slice(0, 500);
       this.stderrTail.push(redactor.redact(line).slice(0, 500));
       if (this.stderrTail.length > 40) this.stderrTail.shift();
       this.log('stderr', line);
@@ -156,6 +159,7 @@ export class PluginProcess {
     this.killReason = undefined;
     this.noise = 0;
     this.stderrTail = [];
+    this.oomLine = undefined;
     const limits = this.limits();
     let spec: LaunchSpec;
     try {
@@ -258,10 +262,11 @@ export class PluginProcess {
     clearInterval(this.watchdog);
     clearTimeout(this.idleTimer);
     const wasStopping = this.state === 'stopping';
-    const oom = this.stderrTail.some((l) => /heap out of memory|Allocation failed|MemoryError/.test(l));
+    const oom = !!this.oomLine;
     const reason = this.killReason ?? (oom ? { code: ErrorCode.MEMORY_LIMIT, message: `${this.id} ran out of memory (limit ${this.limits().memoryMb} MB)` } : undefined);
     const message = spawnError ? `Could not start ${this.id}: ${spawnError.message}` : reason?.message ?? `${this.id} exited unexpectedly (${signal ? `signal ${signal}` : `exit code ${code}`})`;
-    const err = new HelmError(reason?.code ?? ErrorCode.PLUGIN_CRASHED, message, { details: { exitCode: code, signal, stderrTail: this.stderrTail.slice(-8) } });
+    const tail = oom && !this.killReason ? [this.oomLine!] : this.stderrTail.slice(-8);
+    const err = new HelmError(reason?.code ?? ErrorCode.PLUGIN_CRASHED, message, { details: { exitCode: code, signal, stderrTail: tail } });
     this.lastExitError = err;
     this.peer?.close(err);
     this.peer = undefined;

@@ -1,4 +1,5 @@
 {
+  "$schema": "{{schemaUrl}}",
   "manifestVersion": 1,
   "id": "{{id}}",
   "name": "{{title}}",

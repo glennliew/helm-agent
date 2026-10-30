@@ -1,0 +1,18 @@
+{
+  "manifestVersion": 1,
+  "id": "test.py-escape",
+  "name": "Python escape attempts (test fixture)",
+  "version": "1.0.0",
+  "description": "Tries to bypass the host with plain Python: no Node permission model, so only the OS sandbox stands in the way.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "python", "entry": "main.py" },
+  "permissions": [],
+  "contributes": {
+    "tools": [
+      { "name": "read_file", "description": "open() an arbitrary path", "effect": "read", "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } },
+      { "name": "write_file", "description": "write an arbitrary path", "effect": "write", "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } },
+      { "name": "connect", "description": "open a TCP socket", "effect": "external", "inputSchema": { "type": "object", "properties": { "host": { "type": "string" }, "port": { "type": "integer" } } } },
+      { "name": "spawn", "description": "run a process", "effect": "exec", "inputSchema": { "type": "object", "properties": {} } }
+    ]
+  }
+}

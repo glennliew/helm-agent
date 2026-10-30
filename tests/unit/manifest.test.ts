@@ -60,3 +60,9 @@ test('missing manifest gives a helpful hint', () => {
   assert.equal(manifest, undefined);
   assert.match(problems[0]!.hint ?? '', /helm plugin new/);
 });
+
+test('the published JSON Schema (docs/schemas) matches the schema the host validates with', async () => {
+  const { publishedSchema, SCHEMA_FILE } = await import('../../scripts/gen-schema.ts');
+  const fsm = await import('node:fs');
+  assert.deepEqual(JSON.parse(fsm.readFileSync(SCHEMA_FILE, 'utf8')), JSON.parse(JSON.stringify(publishedSchema())), 'run: node scripts/gen-schema.ts');
+});

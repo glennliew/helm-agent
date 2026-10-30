@@ -227,6 +227,14 @@ export class Helm implements SupervisorHost, installer.InstallerHost {
   providers() {
     return this.contributions().providers;
   }
+  /** Secret names a plugin declared (and was granted) but that are not stored yet. */
+  missingSecrets(id: string): string[] {
+    const r = this.state.get(id);
+    const g = r?.grants.find((x) => x.id === 'secrets');
+    if (!g) return [];
+    const have = new Set(this.secrets.list(id));
+    return (g.scope ?? []).filter((n) => !have.has(n));
+  }
 
   resolveProvider(override?: { provider?: string; model?: string }) {
     const cfg = this.config();

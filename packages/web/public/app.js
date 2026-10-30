@@ -277,7 +277,8 @@ function Chat({ overview }) {
       </div>
       <div class="chat-log" ref=${logRef}>
         ${provider?.error && html`<${ErrorBox} error=${provider.error} />`}
-        ${items.length === 0 && !provider?.error && html`<div class="empty">Ask Helm something. Everything it can do comes from your plugins:<br/><span class="small">try "What changed in this repo?", "Search the web for the Node.js permission model", or "Read .env" to see Guard step in.</span></div>`}
+        ${items.length === 0 && !provider?.error && html`<div class="empty">Ask Helm something. Everything it can do here comes from your plugins:
+          <div class="welcome">${(overview?.plugins ?? []).filter((p) => p.enabled && p.availability?.available && (p.counts.tools || p.counts.hooks)).map((p) => html`<div><b>${p.name}</b> <span class="muted">${p.description}</span></div>`)}</div></div>`}
         ${items.map((it) => it.kind === 'user' ? html`<div class="msg user">${it.text}</div>`
           : it.kind === 'assistant' ? html`<div class="msg assistant"><${Markdown} text=${it.text} /></div>`
           : it.kind === 'tool' ? html`<${ToolCard} ev=${it} />`

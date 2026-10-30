@@ -49,6 +49,29 @@ test('the plugin environment is scrubbed of host secrets', { skip }, async () =>
   assert.ok(names.length < 15, `unexpectedly large environment: ${names.join(', ')}`);
 });
 
+test('a Python plugin, which has no runtime permission layer, is contained by the OS sandbox alone', { skip }, async () => {
+  await install(t.helm, path.join(FIXTURES, 'py-escape'), { link: true, trust: false });
+  const py = async (name: string, input: Record<string, unknown> = {}) => {
+    const entry = t.helm.contributions().tools.find((x) => x.pluginId === 'test.py-escape' && x.tool.name === name)!;
+    return text(await t.helm.invokeTool(entry, input));
+  };
+  const secret = path.join(os.homedir(), '.helm-sandbox-probe-py');
+  const outside = path.join(os.homedir(), '.helm-escape-write');
+  fs.writeFileSync(secret, 'top secret');
+  try {
+    assert.match(await py('read_file', { path: secret }), /^blocked/);
+    assert.match(await py('read_file', { path: path.join(t.workspace, 'inside.txt') }), /^blocked/, 'even the workspace: Python reads go through ctx.fs');
+    assert.match(await py('write_file', { path: outside }), /^blocked/);
+    assert.equal(fs.existsSync(outside), false);
+    assert.match(await py('connect', { host: '1.1.1.1', port: 443 }), /^blocked/);
+    assert.match(await py('spawn'), /^blocked/);
+    assert.equal(t.helm.runningProcess('test.py-escape')!.describe().isolation, 'strict');
+  } finally {
+    fs.rmSync(secret, { force: true });
+    fs.rmSync(outside, { force: true });
+  }
+});
+
 test('a strict plugin refuses to start when the sandbox is required but unavailable', { skip: !skip && 'sandbox is available here; covered by the CLI in agent terminals' }, async () => {
   const x = makeHelm();
   try {

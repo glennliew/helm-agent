@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import type { Helm } from '../../core/src/helm.ts';
 import { readManifest, formatProblems, compatibilityProblem } from '../../core/src/manifest/manifest.ts';
 import { expectedIsolation, pythonRuntime } from '../../core/src/runtime/launch.ts';
-import { TEMPLATES_DIR, SDK_NODE_DIR, sha256File } from '../../core/src/paths.ts';
+import { TEMPLATES_DIR, SDK_NODE_DIR, REPO_ROOT, sha256File } from '../../core/src/paths.ts';
 import { HelmError, ErrorCode } from '../../core/src/errors.ts';
 import { permissionDef } from '../../core/src/permissions/catalog.ts';
 import { c, out, json, printError, renderUI, sym, table } from './ui.ts';
@@ -20,7 +21,7 @@ export function newPlugin(name: string, opts: { lang?: string; dir?: string; id?
   const dest = path.resolve(opts.dir ?? slug);
   if (fs.existsSync(dest) && fs.readdirSync(dest).length) throw new HelmError(ErrorCode.INPUT_INVALID, `${dest} already exists and is not empty`);
   const title = slug.split('-').map((w) => w[0]!.toUpperCase() + w.slice(1)).join(' ');
-  const vars: Record<string, string> = { id, title, packageName: slug, sdkDir: SDK_NODE_DIR };
+  const vars: Record<string, string> = { id, title, packageName: slug, sdkDir: SDK_NODE_DIR, schemaUrl: pathToFileURL(path.join(REPO_ROOT, 'docs/schemas/plugin-manifest-v1.json')).href };
   const src = path.join(TEMPLATES_DIR, lang);
   const copy = (from: string, to: string) => {
     for (const e of fs.readdirSync(from, { withFileTypes: true })) {
@@ -37,7 +38,7 @@ export function newPlugin(name: string, opts: { lang?: string; dir?: string; id?
   out(`  ${c.dim('next:')}`);
   out(`  cd ${path.relative(process.cwd(), dest) || '.'}`);
   out(`  helm plugin dev .      ${c.dim('# link + hot reload + interactive console')}`);
-  if (lang === 'typescript') out(`  helm plugin test .     ${c.dim('# unit tests with the fake host')}`);
+  out(`  helm plugin test .     ${c.dim('# unit tests with the fake host')}`);
   return dest;
 }
 
@@ -84,19 +85,20 @@ export async function packPlugin(dir: string, opts: { out?: string } = {}) {
 }
 
 // ------------------------------------------------------------------ test
-export function testPlugin(dir: string) {
+export function testPlugin(dir: string, opts: { stdio?: 'inherit' | 'pipe' } = {}) {
+  const stdio = opts.stdio ?? 'inherit';
   const abs = path.resolve(dir);
   const { manifest } = readManifest(abs);
   if (manifest?.runtime.type === 'python') {
     const py = pythonRuntime();
     if (!py) throw new HelmError(ErrorCode.INSTALL_FAILED, 'python3 not found');
     const sdk = path.join(SDK_NODE_DIR, '../../sdk-python');
-    return spawnSync(py.exe, ['-m', 'unittest', 'discover', '-s', abs, '-p', 'test_*.py'], { stdio: 'inherit', cwd: abs, env: { ...process.env, PYTHONPATH: sdk } }).status ?? 1;
+    return spawnSync(py.exe, ['-m', 'unittest', 'discover', '-s', abs, '-p', 'test_*.py'], { stdio, cwd: abs, env: { ...process.env, PYTHONPATH: sdk } }).status ?? 1;
   }
   const testDir = path.join(abs, 'test');
   const files = fs.existsSync(testDir) ? fs.readdirSync(testDir).filter((f) => /\.test\.(ts|js|mjs)$/.test(f)).map((f) => path.join(testDir, f)) : [];
   if (!files.length) { out(c.yellow(`${sym.warn} no test/*.test.ts files in ${abs}`)); return 0; }
-  return spawnSync(process.execPath, ['--import', path.join(SDK_NODE_DIR, 'register.ts'), '--test', ...files], { stdio: 'inherit', cwd: abs }).status ?? 1;
+  return spawnSync(process.execPath, ['--import', path.join(SDK_NODE_DIR, 'register.ts'), '--test', ...files], { stdio, cwd: abs }).status ?? 1;
 }
 
 // ------------------------------------------------------------------ dev

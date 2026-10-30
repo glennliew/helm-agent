@@ -4,6 +4,7 @@ A Helm plugin (`{{id}}`) written in Python (3.9+, standard library only).
 
 ```sh
 helm plugin dev .        # link, start, hot-reload on save, interactive console
+helm plugin test .       # test_*.py with the in-process fake host (helm_plugin_testing)
 helm plugin validate .   # manifest + compatibility + isolation check
 helm plugin pack .       # build {{id}}-0.1.0.hplugin.tgz to share
 ```

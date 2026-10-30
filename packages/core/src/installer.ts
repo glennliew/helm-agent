@@ -35,6 +35,8 @@ export interface RegistryEntry {
   source: string;
   tags?: string[];
   sha256?: string;
+  /** Installed by `helm init` unless --only is given. */
+  starter?: boolean;
   registry: string;
 }
 
@@ -51,6 +53,19 @@ export interface InstallPlan {
 }
 
 // ------------------------------------------------------------------ registries
+/** Registry-level defaults: which plugins `helm init` installs and which provider it prefers. */
+export function registryDefaults(cfg: HostConfig): { starter: string[]; preferredProvider?: string } {
+  const starter: string[] = [];
+  let preferredProvider: string | undefined;
+  for (const reg of cfg.registries) {
+    if (/^https?:/.test(reg)) continue;
+    const idx = readJsonSync<{ preferredProvider?: string; plugins?: Array<{ id: string; starter?: boolean }> }>(reg, {});
+    preferredProvider ??= idx.preferredProvider;
+    for (const e of idx.plugins ?? []) if (e.starter && !starter.includes(e.id)) starter.push(e.id);
+  }
+  return { starter, preferredProvider };
+}
+
 export function readRegistries(cfg: HostConfig): RegistryEntry[] {
   const out: RegistryEntry[] = [];
   for (const reg of cfg.registries) {
@@ -91,7 +106,7 @@ function tmpDir(prefix: string) {
 }
 
 function isGitSpec(s: string) {
-  // Require URL syntax: "helm.git" is a plugin id, not a repository.
+  // Require URL syntax: an id such as "acme.git" is a plugin id, not a repository.
   return s.startsWith('git+') || s.startsWith('git@') || (/^(https?|ssh|file):\/\//.test(s) && s.endsWith('.git'));
 }
 
@@ -226,7 +241,7 @@ export async function commitUpdate(host: InstallerHost, plan: InstallPlan, decis
   const cfgProblems = validateConfig(m, r.config);
   if (cfgProblems.length) notes.push(`Your saved config is not valid for ${m.version}: ${cfgProblems.join('; ')}. Fix it with \`helm plugin config ${m.id}\`.`);
   host.state.patch(m.id, (rec) => {
-    rec.previous = { version: r.version, dir: r.dir, grants: r.grants, config: r.config };
+    rec.previous = { version: r.version, dir: r.dir, grants: r.grants, config: r.config, source: r.source };
     rec.version = m.version;
     rec.dir = dest;
     rec.source = plan.source;
@@ -249,8 +264,9 @@ export async function rollback(host: InstallerHost, id: string) {
   await host.stopPlugin(id, 'rolling back');
   const prev = r.previous;
   host.state.patch(id, (rec) => {
-    rec.previous = { version: rec.version, dir: rec.dir, grants: rec.grants, config: rec.config };
+    rec.previous = { version: rec.version, dir: rec.dir, grants: rec.grants, config: rec.config, source: rec.source };
     rec.version = prev.version;
+    if (prev.source) rec.source = prev.source;
     rec.dir = prev.dir;
     rec.grants = prev.grants;
     rec.config = prev.config;
