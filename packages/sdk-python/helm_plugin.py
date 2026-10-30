@@ -104,8 +104,12 @@ class Context:
             list=lambda path=".": r("host/fs.list", {"path": path}),
             stat=lambda path: r("host/fs.stat", {"path": path}),
             write=lambda path, content, create_dirs=False: r("host/fs.write", {"path": path, "content": content, "createDirs": create_dirs}),
+            mkdir=lambda path: r("host/fs.mkdir", {"path": path}),
+            remove=lambda path, recursive=False: r("host/fs.remove", {"path": path, "recursive": recursive}),
         )
         self.net = _Namespace(fetch=self._fetch)
+        self.process = _Namespace(exec=self._exec)
+        self.llm = _Namespace(complete=lambda messages, max_tokens=None: r("host/llm.complete", {"messages": messages, **({"maxTokens": max_tokens} if max_tokens else {})}))
         self.secrets = _Namespace(get=lambda name: r("host/secrets.get", {"name": name})["value"])
         self.storage = _Namespace(
             get=lambda key: r("host/storage.get", {"key": key}).get("value"),
@@ -133,6 +137,18 @@ class Context:
         res = self._rt.request("host/net.fetch", params)
         res["ok"] = 200 <= res.get("status", 0) < 300
         return res
+
+    def _exec(self, command: str, args: Optional[list] = None, cwd: Optional[str] = None,
+              timeout_ms: Optional[int] = None, input: Optional[str] = None) -> dict:
+        """Run a program through the host (needs process.exec for `command`). The plugin itself cannot spawn."""
+        params: Dict[str, Any] = {"command": command, "args": args or []}
+        if cwd:
+            params["cwd"] = cwd
+        if timeout_ms:
+            params["timeoutMs"] = timeout_ms
+        if input is not None:
+            params["input"] = input
+        return self._rt.request("host/process.exec", params)
 
     def progress(self, message: str) -> None:
         self._rt.notify("host/progress", {"callId": self.call_id, "message": message})

@@ -1,7 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://helm.local/schemas/plugin-manifest-v1.json",
-  "title": "Helm plugin manifest (helm-plugin.json), version 1",
+  "$id": "https://helm-agent.dev/schemas/plugin-manifest-v1.json",
   "type": "object",
   "required": [
     "manifestVersion",
@@ -352,5 +350,7 @@
         }
       }
     }
-  }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Helm plugin manifest (helm-plugin.json), version 1"
 }

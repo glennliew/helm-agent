@@ -138,3 +138,34 @@ test('OpenRouter provider: tool calling round-trip, auth header, reasoning passt
     assert.equal(fake.requests.length, before);
   } finally { await o.cleanup(); }
 });
+
+test('watch hooks see conversation content only with conversation.read', async () => {
+  const w = makeHelm();
+  try {
+    await install(w.helm, 'helm.mock-model');
+    await install(w.helm, path.join(FIXTURES, 'watcher'), { link: true, deny: ['conversation.read'] });
+    const seen = async () => {
+      await new Promise((r) => setTimeout(r, 150)); // watch hooks are fire-and-forget
+      const entry = w.helm.contributions().tools.find((x) => x.pluginId === 'test.watcher')!;
+      return JSON.parse((await w.helm.invokeTool(entry, {})).content.map((b: any) => b.text).join('')) as Array<{ event: string; payload: any }>;
+    };
+    const s = new Session(w.helm, { provider: 'helm.mock-model/mock' });
+    await run(s, 'my private plan');
+    await run(s, 'call watcher__seen');
+    let log = await seen();
+    const msgHook = w.helm.contributions().hooks.find((h) => h.pluginId === 'test.watcher' && h.hook.event === 'message.user')!;
+    assert.equal(msgHook.available, false, 'message hooks need conversation.read');
+    assert.match(msgHook.reason ?? '', /conversation\.read/);
+    assert.ok(!log.some((e) => e.event === 'message.user'));
+    assert.ok(!JSON.stringify(log).includes('my private plan'));
+    const after = log.find((e) => e.event === 'tool.after')!;
+    assert.ok(after, 'tool.after watch hooks fire');
+    assert.deepEqual(after.payload.redacted, ['input', 'output']);
+    assert.equal(after.payload.exposedName, 'watcher__seen', 'metadata is still delivered');
+
+    await w.helm.grant('test.watcher', 'conversation.read');
+    await run(new Session(w.helm, { provider: 'helm.mock-model/mock' }), 'now you may read this');
+    log = await seen();
+    assert.ok(log.some((e) => e.event === 'message.user' && e.payload.text === 'now you may read this'));
+  } finally { await w.cleanup(); }
+});

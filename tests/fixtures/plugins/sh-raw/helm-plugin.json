@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 1,
+  "id": "test.sh-raw",
+  "name": "Shell plugin (raw protocol)",
+  "version": "1.0.0",
+  "description": "A plugin written as a 20-line shell script, with no SDK.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "exec", "command": ["./plugin.sh"] },
+  "contributes": {
+    "tools": [
+      { "name": "shout", "description": "Echo text back, loudly.", "effect": "read",
+        "inputSchema": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] } }
+    ]
+  }
+}

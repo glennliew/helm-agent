@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 1,
+  "id": "test.watcher",
+  "name": "Watcher (test fixture)",
+  "version": "1.0.0",
+  "description": "Records what its watch hooks receive, to test conversation.read filtering.",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "index.ts" },
+  "permissions": [
+    { "id": "conversation.read", "optional": true, "reason": "See message and tool contents in hooks." }
+  ],
+  "contributes": {
+    "tools": [
+      { "name": "seen", "description": "Return recorded hook payloads.", "effect": "read", "inputSchema": { "type": "object", "properties": {} } }
+    ],
+    "hooks": [
+      { "event": "message.user", "mode": "watch" },
+      { "event": "tool.before", "mode": "watch" },
+      { "event": "tool.after", "mode": "watch" }
+    ]
+  }
+}

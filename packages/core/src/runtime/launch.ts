@@ -168,7 +168,8 @@ export function buildLaunch(input: LaunchInput): LaunchSpec {
     const [cmd, ...rest] = m.runtime.command!;
     command = path.isAbsolute(cmd!) ? cmd! : path.resolve(pluginDir, cmd!);
     args = rest;
-    execPrefixes = [pluginDir];
+    // A script's interpreter is exec'd too, so allow exactly that program (not all of /bin).
+    execPrefixes = [pluginDir, ...shebangPrograms(command, env.PATH!)];
   }
 
   let isolation: Isolation = m.runtime.type === 'node' ? 'runtime' : 'basic';
@@ -187,6 +188,33 @@ export function buildLaunch(input: LaunchInput): LaunchSpec {
 }
 
 /** Isolation level a plugin would get on this machine, without launching it. */
+/**
+ * Programs the kernel will exec to run `file` if it is a script: the `#!` interpreter and, for
+ * `#!/usr/bin/env prog`, the program env resolves on the plugin's PATH.
+ */
+export function shebangPrograms(file: string, searchPath: string): string[] {
+  let first = '';
+  try {
+    const fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(256);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    first = buf.subarray(0, n).toString('utf8').split('\n')[0] ?? '';
+  } catch { return []; }
+  if (!first.startsWith('#!')) return [];
+  const [interp, ...words] = first.slice(2).trim().split(/\s+/);
+  if (!interp || !path.isAbsolute(interp)) return [];
+  const out = [realpathLoose(interp)];
+  // macOS /bin/sh is a shim that re-execs the selected shell (/private/var/select/sh → bash or dash).
+  if (interp === '/bin/sh' && fs.existsSync('/private/var/select/sh')) out.push(realpathLoose('/private/var/select/sh'));
+  if (path.basename(interp) === 'env') {
+    const prog = words.find((w) => !w.startsWith('-'));
+    const found = prog && searchPath.split(':').map((d) => path.join(d, prog)).find((p) => fs.existsSync(p));
+    if (found) out.push(realpathLoose(found));
+  }
+  return out;
+}
+
 export function expectedIsolation(m: Manifest): { level: Isolation; reason?: string } {
   const s = sandboxAvailability();
   if (s.available) return { level: 'strict' };

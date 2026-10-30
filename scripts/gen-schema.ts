@@ -7,7 +7,7 @@ import { manifestSchema } from '../packages/core/src/manifest/manifest.ts';
 
 export const SCHEMA_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../docs/schemas/plugin-manifest-v1.json');
 export function publishedSchema() {
-  return { $schema: 'http://json-schema.org/draft-07/schema#', $id: 'https://helm-agent.dev/schemas/plugin-manifest-v1.json', title: 'Helm plugin manifest (helm-plugin.json), version 1', ...manifestSchema };
+  return { ...manifestSchema, $schema: 'http://json-schema.org/draft-07/schema#', $id: 'https://helm-agent.dev/schemas/plugin-manifest-v1.json', title: 'Helm plugin manifest (helm-plugin.json), version 1' };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   fs.writeFileSync(SCHEMA_FILE, JSON.stringify(publishedSchema(), null, 2) + '\n');

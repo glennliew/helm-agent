@@ -1,6 +1,7 @@
 import type { Helm } from '../helm.ts';
 import type { ToolResult } from '../types.ts';
 import { toHelmError } from '../errors.ts';
+import { findGrant } from '../permissions/grants.ts';
 
 export interface HookOutcome {
   action: 'continue' | 'block' | 'ask';
@@ -62,11 +63,25 @@ export async function runIntercept(helm: Helm, event: 'tool.before' | 'tool.afte
   return out;
 }
 
+/** Payload fields that carry conversation content: only plugins granted conversation.read see them. */
+const CONTENT_FIELDS = ['text', 'input', 'output'] as const;
+
+/** What a watcher may see: content fields are removed (and listed in `redacted`) without conversation.read. */
+export function payloadFor(helm: Helm, pluginId: string, payload: Record<string, unknown>): Record<string, unknown> {
+  const record = helm.state.get(pluginId);
+  if (record && findGrant(record, 'conversation.read')) return payload;
+  const redacted = CONTENT_FIELDS.filter((f) => payload[f] !== undefined);
+  if (!redacted.length) return payload;
+  const copy: Record<string, unknown> = { ...payload, redacted };
+  for (const f of redacted) delete copy[f];
+  return copy;
+}
+
 /** Fire-and-forget notification to watch hooks. Never blocks or fails the session. */
 export function notifyWatchers(helm: Helm, event: string, payload: Record<string, unknown>) {
   for (const h of helm.contributions().hooks) {
     if (h.hook.event !== event || h.hook.mode !== 'watch' || !h.available) continue;
-    helm.process(h.pluginId).call('hook/dispatch', { event, payload }, { timeoutMs: h.hook.timeoutMs ?? 5000 }).catch(() => { /* logged by supervisor */ });
+    helm.process(h.pluginId).call('hook/dispatch', { event, payload: payloadFor(helm, h.pluginId, payload) }, { timeoutMs: h.hook.timeoutMs ?? 5000 }).catch(() => { /* logged by supervisor */ });
   }
 }
 

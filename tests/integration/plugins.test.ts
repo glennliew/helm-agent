@@ -81,3 +81,13 @@ test('Git plugin without the optional fs.write grant can read history but cannot
   assert.equal(commitTool.available, false);
   assert.match(commitTool.reason ?? '', /fs\.write/);
 });
+
+// ---------------------------------------------------------------- the protocol is the contract
+test('a plugin written as a shell script (exec runtime, no SDK) works through the real host', async () => {
+  const t = makeHelm();
+  cleanups.push(() => t.cleanup());
+  await install(t.helm, path.join(REPO, 'tests/fixtures/plugins/sh-raw'), { link: true });
+  const entry = t.helm.contributions().tools.find((x) => x.pluginId === 'test.sh-raw' && x.tool.name === 'shout')!;
+  assert.ok(entry.available, entry.reason);
+  assert.equal(text(await t.helm.invokeTool(entry, { text: 'ahoy' })), 'ahoy! (from sh)');
+});

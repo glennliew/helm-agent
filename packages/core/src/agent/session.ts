@@ -161,6 +161,7 @@ export class Session {
       if (decision === 'always' && before.action !== 'ask') this.alwaysAllow.add(entry.exposedName);
     }
 
+    notifyWatchers(helm, 'tool.before', { ...basePayload, input });
     let output: ToolResult;
     try {
       output = await helm.invokeTool(entry, input, { callId: call.id, sessionId: this.id, signal });
@@ -174,6 +175,7 @@ export class Session {
     if (after.action === 'block') return fail('PERMISSION_DENIED', `Result withheld by ${after.reasons.at(-1)?.plugin}: ${after.reasons.at(-1)?.reason}`, true);
     if (after.output) output = helm.boundResult(after.output);
     const text = resultToText(output);
+    notifyWatchers(helm, 'tool.after', { ...basePayload, input, output, ok: !output.isError, durationMs: Date.now() - started });
     emit({ type: 'tool.end', id: call.id, tool: call.name, plugin: entry.pluginId, ok: !output.isError, summary: summarize(text), durationMs: Date.now() - started });
     this.record({ role: 'tool', tool: call.name, ok: !output.isError, chars: text.length });
     return output.isError ? JSON.stringify({ error: { code: 'TOOL_ERROR', message: text } }) : text;
