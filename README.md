@@ -85,7 +85,7 @@ Plugins can contribute:
 
 ## Bundled plugins
 
-The host has no plugin-specific code. A test (`tests/unit/extensibility.test.ts`) fails if any host file names a bundled plugin, tool or provider. These six plugins ship in `plugins/` and install from the bundled registry like any third-party plugin would:
+The host has no plugin-specific code. A test (`tests/unit/extensibility.test.ts`) fails if any host file names a bundled plugin, tool or provider. These seven plugins ship in `plugins/` and install from the bundled registry like any third-party plugin would:
 
 | Plugin | Language | Contributes | Permissions it asks for |
 | --- | --- | --- | --- |
@@ -95,12 +95,44 @@ The host has no plugin-specific code. A test (`tests/unit/extensibility.test.ts`
 | `helm.guard` | TypeScript | 3 hooks (intercept), 3 commands, 1 panel, config | `tool.intercept` |
 | `helm.openrouter` | TypeScript | model provider, 2 commands, config | `net.http` openrouter.ai; `secrets` API_KEY |
 | `helm.mock-model` | TypeScript | model provider (offline, deterministic) | none |
+| `helm.paypal` | TypeScript | 10 tools, 2 commands, 1 panel, config | `net.http` api-m.sandbox.paypal.com only; `secrets` CLIENT_ID, CLIENT_SECRET |
 
-They exercise different contribution points and languages. Guard changes the behaviour of tools it doesn't own, OpenRouter replaces the brain of the agent loop, and Web is written in Python. Removing any of them removes the capability; nothing else changes.
+They exercise different contribution points and languages. PayPal lets the agent move money, so it is the one where every safety layer matters at once. Guard changes the behaviour of tools it doesn't own, OpenRouter replaces the brain of the agent loop, and Web is written in Python. Removing any of them removes the capability; nothing else changes.
 
 ### Model choice (OpenRouter)
 
 The OpenRouter plugin defaults to **`anthropic/claude-opus-5.5`**, with **`anthropic/claude-sonnet-5.5`** as an automatic fallback and **`anthropic/claude-haiku-5.5`** for "fast" internal calls. Opus 5.5 led the agentic tool-use benchmarks I compared in October 2026 (Terminal-Bench, τ²-bench, MCP Atlas), and OpenRouter preserves its reasoning blocks across tool calls, which multi-step tool use needs. As you asked, the plugin refuses GPT-6 or newer and Claude Fable 5 or newer through a configurable `blockedModels` policy. It checks before sending a request and again against the model OpenRouter actually routed to. Change the model with `helm provider use helm.openrouter/openrouter -m <model>` or in the console. `helm cmd openrouter.models` lists the allowed tool-capable models.
+
+## Payments: the PayPal plugin
+
+`helm.paypal` lets the agent invoice customers, create checkout links, capture payments and issue refunds on the **PayPal sandbox**. Its tool names and inputs follow PayPal's [Agent Toolkit](https://github.com/paypal/agent-toolkit), so prompts written for it work here too.
+
+| Tool | What it does | Approval |
+| --- | --- | --- |
+| `create_invoice` | Draft invoice with line items (nothing is sent yet) | auto |
+| `send_invoice` | Email the invoice; returns the payer link | **ask** |
+| `list_invoices`, `get_invoice` | Status, totals, recipient, payer link | auto |
+| `cancel_sent_invoice` | Cancel a sent invoice and notify the customer | **ask** |
+| `create_order`, `get_order` | Checkout order and the buyer's approve link | auto |
+| `pay_order` | Capture an approved order | **ask** |
+| `create_refund` | Full or partial refund of a capture | **ask** |
+| `list_transactions` | Account transactions for the last N days | auto |
+
+Four layers stand between the model and your money:
+
+1. **Network scope.** The `net.http` grant allows only `api-m.sandbox.paypal.com`; the broker refuses live PayPal even if the config is changed.
+2. **Credentials.** The client ID and secret live in the Keychain and are read through the `secrets` grant. The OAuth token stays inside the plugin, and Guard redacts anything that looks like a PayPal access token from tool output.
+3. **Approvals.** Every tool that sends a payment request or moves money asks you first, in the CLI or the console.
+4. **Spend limits.** `maxAmountPerAction` (default 500) and `dailyLimit` (default 2000) are checked *before* PayPal is called. A refused or failed request does not use up the allowance. The PayPal panel shows today's total against the limit.
+
+```sh
+helm secrets set helm.paypal CLIENT_ID --from-dotenv .env --var PAYPAL_CLIENT_ID
+helm secrets set helm.paypal CLIENT_SECRET --from-dotenv .env --var PAYPAL_CLIENT_SECRET
+helm cmd paypal.status
+helm chat     # "Invoice ada@example.com $250 for the October retainer and send it"
+```
+
+`zsh scripts/paypal-check.sh` runs the whole flow against the sandbox in a throwaway Helm home, using the credentials in `.env`.
 
 ## Using Helm
 
@@ -140,7 +172,7 @@ packages/cli                the helm CLI (chat, run, plugin *, dev tools)
 packages/web                local web console (server + Preact/htm UI, no build step)
 packages/sdk-node           TypeScript plugin SDK (+ in-process test harness)
 packages/sdk-python         Python plugin SDK, stdlib only (+ helm_plugin_testing)
-plugins/                    the six bundled plugins
+plugins/                    the seven bundled plugins
 registry/index.json         bundled registry (starter set, preferred provider)
 templates/                  scaffolds used by `helm plugin new`
 examples/tides              small Python project with planted bugs, used by the walkthrough

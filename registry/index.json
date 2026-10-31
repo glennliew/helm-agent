@@ -82,6 +82,20 @@
       ],
       "description": "Deterministic offline model provider for tests and plugin development.",
       "starter": true
+    },
+    {
+      "id": "helm.paypal",
+      "name": "PayPal",
+      "version": "1.0.0",
+      "source": "../plugins/paypal",
+      "tags": [
+        "payments",
+        "paypal",
+        "invoices",
+        "sandbox"
+      ],
+      "description": "Invoices, checkout orders, captures and refunds on the PayPal sandbox, behind approvals and spend limits.",
+      "starter": true
     }
   ],
   "preferredProvider": "helm.openrouter/openrouter"

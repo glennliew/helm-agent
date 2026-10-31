@@ -1,0 +1,130 @@
+{
+  "$schema": "../../docs/schemas/plugin-manifest-v1.json",
+  "manifestVersion": 1,
+  "id": "helm.paypal",
+  "name": "PayPal",
+  "version": "1.0.0",
+  "description": "Lets the agent invoice customers, take payments and issue refunds through the PayPal sandbox, behind approvals and spend limits.",
+  "publisher": "helm",
+  "license": "MIT",
+  "homepage": "https://developer.paypal.com/api/rest/",
+  "engines": { "helm": ">=0.1.0 <1.0.0", "protocol": "^1.0" },
+  "runtime": { "type": "node", "entry": "src/index.ts" },
+  "activation": ["onTool", "onCommand"],
+  "permissions": [
+    { "id": "net.http", "scope": ["api-m.sandbox.paypal.com"], "reason": "Call the PayPal REST API. Scoped to the sandbox host, so this plugin cannot reach live PayPal." },
+    { "id": "secrets", "scope": ["CLIENT_ID", "CLIENT_SECRET"], "reason": "Sign in to PayPal with your sandbox app's client ID and secret (developer.paypal.com → Apps & Credentials → Sandbox)." }
+  ],
+  "contributes": {
+    "tools": [
+      {
+        "name": "create_invoice", "title": "Create invoice (draft)", "effect": "external",
+        "description": "Create a DRAFT PayPal invoice for a customer. Nothing is sent or charged until send_invoice. Amounts are decimal strings or numbers in the given currency.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "recipient_email": { "type": "string", "description": "Customer's email address." },
+            "recipient_name": { "type": "string", "description": "Customer's full name (optional)." },
+            "currency_code": { "type": "string", "pattern": "^[A-Z]{3}$", "default": "USD" },
+            "items": {
+              "type": "array", "minItems": 1, "maxItems": 50,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "quantity": { "type": "number", "exclusiveMinimum": 0, "default": 1 },
+                  "unit_amount": { "type": ["string", "number"], "description": "Price per unit, e.g. \"250.00\"." },
+                  "description": { "type": "string" }
+                },
+                "required": ["name", "unit_amount"]
+              }
+            },
+            "note": { "type": "string", "description": "Note shown to the customer." },
+            "due_in_days": { "type": "integer", "minimum": 0, "maximum": 365, "description": "Payment due date, in days from today." }
+          },
+          "required": ["recipient_email", "items"]
+        }
+      },
+      {
+        "name": "send_invoice", "title": "Send invoice", "effect": "external", "approval": "ask",
+        "description": "Send a draft invoice to the customer by email. This is a real payment request, so the user confirms it.",
+        "inputSchema": { "type": "object", "properties": { "invoice_id": { "type": "string" }, "subject": { "type": "string" }, "note": { "type": "string" } }, "required": ["invoice_id"] }
+      },
+      {
+        "name": "list_invoices", "title": "List invoices", "effect": "external",
+        "description": "List recent invoices with their status and totals.",
+        "inputSchema": { "type": "object", "properties": { "page": { "type": "integer", "minimum": 1, "default": 1 }, "page_size": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 } } }
+      },
+      {
+        "name": "get_invoice", "title": "Get invoice", "effect": "external",
+        "description": "Get one invoice's status, amounts, recipient and payment link.",
+        "inputSchema": { "type": "object", "properties": { "invoice_id": { "type": "string" } }, "required": ["invoice_id"] }
+      },
+      {
+        "name": "cancel_sent_invoice", "title": "Cancel sent invoice", "effect": "external", "approval": "ask",
+        "description": "Cancel an invoice that was already sent, and notify the customer.",
+        "inputSchema": { "type": "object", "properties": { "invoice_id": { "type": "string" }, "note": { "type": "string" } }, "required": ["invoice_id"] }
+      },
+      {
+        "name": "create_order", "title": "Create order (checkout link)", "effect": "external",
+        "description": "Create a PayPal checkout order and return the link the buyer opens to approve the payment. No money moves until pay_order.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "amount": { "type": ["string", "number"], "description": "Total, e.g. \"49.99\"." },
+            "currency_code": { "type": "string", "pattern": "^[A-Z]{3}$", "default": "USD" },
+            "description": { "type": "string", "maxLength": 127 }
+          },
+          "required": ["amount"]
+        }
+      },
+      {
+        "name": "get_order", "title": "Get order", "effect": "external",
+        "description": "Get an order's status (CREATED, APPROVED, COMPLETED...) and capture IDs.",
+        "inputSchema": { "type": "object", "properties": { "order_id": { "type": "string" } }, "required": ["order_id"] }
+      },
+      {
+        "name": "pay_order", "title": "Capture payment", "effect": "external", "approval": "ask",
+        "description": "Capture the payment for an order the buyer has approved. Moves money, so the user confirms it.",
+        "inputSchema": { "type": "object", "properties": { "order_id": { "type": "string" } }, "required": ["order_id"] }
+      },
+      {
+        "name": "create_refund", "title": "Refund payment", "effect": "external", "approval": "ask",
+        "description": "Refund a captured payment, fully or partially (pass amount for a partial refund). Sends money back, so the user confirms it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "capture_id": { "type": "string" },
+            "amount": { "type": ["string", "number"], "description": "Omit to refund the full capture." },
+            "currency_code": { "type": "string", "pattern": "^[A-Z]{3}$", "default": "USD" },
+            "note_to_payer": { "type": "string", "maxLength": 255 }
+          },
+          "required": ["capture_id"]
+        }
+      },
+      {
+        "name": "list_transactions", "title": "List transactions", "effect": "external",
+        "description": "List account transactions for the last N days (max 31). Sandbox transactions can take up to a few hours to appear here.",
+        "inputSchema": { "type": "object", "properties": { "days": { "type": "integer", "minimum": 1, "maximum": 31, "default": 7 } } }
+      }
+    ],
+    "commands": [
+      { "name": "status", "title": "Check the PayPal sandbox connection and limits" },
+      { "name": "clear", "title": "Clear the PayPal activity log (limits keep counting today's total)" }
+    ],
+    "panels": [
+      { "id": "activity", "title": "PayPal", "description": "Sandbox payments made by the agent today, against your limits." }
+    ],
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseUrl": { "type": "string", "default": "https://api-m.sandbox.paypal.com", "description": "PayPal REST base URL. The net.http grant only allows the sandbox host." },
+        "maxAmountPerAction": { "type": "number", "minimum": 0, "default": 500, "description": "Largest amount one invoice, order or refund may carry. Larger requests are refused before PayPal is called." },
+        "dailyLimit": { "type": "number", "minimum": 0, "default": 2000, "description": "Total value the agent may invoice, charge or refund per day (UTC). Counted across all currencies at face value." },
+        "allowedCurrencies": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}$" }, "default": ["USD", "EUR", "GBP", "SGD", "HKD", "AUD", "CAD"], "description": "Currencies the agent may use." }
+      }
+    }
+  },
+  "limits": { "callTimeoutMs": 60000, "maxConcurrency": 2 }
+}

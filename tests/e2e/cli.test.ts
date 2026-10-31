@@ -49,7 +49,7 @@ test('helm init installs the registry starter set with consent and explains the 
 
 test('plugin list and info describe what is installed', () => {
   const list = json('plugin', 'list');
-  assert.equal(list.length, 6);
+  assert.equal(list.length, 7); // the seven bundled starter plugins
   const files = list.find((p: any) => p.id === 'helm.files');
   assert.ok(files.status.available, JSON.stringify(files.status));
   const info = helm('plugin', 'info', 'helm.files');

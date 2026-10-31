@@ -62,6 +62,7 @@
             "sk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}",
             "gh[pousr]_[A-Za-z0-9]{30,}",
             "AKIA[0-9A-Z]{16}",
+            "A21AA[A-Za-z0-9_-]{40,}",
             "xox[abprs]-[A-Za-z0-9-]{10,}",
             "-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----"
           ],
